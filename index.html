@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>Мой план обучения — трекер прогресса с дедлайнами (сортировка + подсветка)</title>
+    <title>Мой план обучения — трекер прогресса с дедлайнами (синхронизация)</title>
     <style>
         * {
             margin: 0;
@@ -78,6 +78,7 @@
             gap: 12px;
             border-bottom: 1px solid #e2e8f0;
             font-size: 0.8rem;
+            flex-wrap: wrap;
         }
 
         .sort-btn {
@@ -101,6 +102,27 @@
             background: #1e2a3a;
             border-color: #1e2a3a;
             color: white;
+        }
+
+        .sync-btn {
+            background: #2c6e2c;
+            color: white;
+            border: none;
+            padding: 4px 16px;
+            border-radius: 30px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .sync-btn:hover {
+            background: #1e4a1e;
+            transform: scale(0.98);
         }
 
         .table-wrapper {
@@ -130,25 +152,20 @@
             transition: background 0.2s;
         }
 
-        /* Цветовые стили для строк */
         tr.completed-row {
-            background-color: #e6f7e6;  /* зелёный для пройденных */
+            background-color: #e6f7e6;
         }
         tr.warning-row {
-            background-color: #fff9c4;  /* жёлтый: дедлайн не наступил, но не пройдено */
+            background-color: #fff9c4;
         }
         tr.danger-row {
-            background-color: #ffe6e5;  /* красный: дедлайн наступил и не пройдено */
+            background-color: #ffe6e5;
         }
-        /* НОВЫЙ СТИЛЬ: синий цвет, если текущая дата равна дедлайну (и не пройдено) */
         tr.today-deadline-row {
-            background-color: #b8d9ff !important;  /* яркий голубовато-синий */
+            background-color: #b8d9ff !important;
         }
-        /* Приоритет: если строка имеет completed-row, то синий не должен перебивать? По условию задачи: "if current date equals to deadline, make this row blue." 
-           Но обычно дедлайн совпадает с сегодня — если уже пройдено, логика неясна, но сделаем так: blue применяется только для непройденных строк,
-           иначе completed-row имеет приоритет. */
         tr.completed-row.today-deadline-row {
-            background-color: #e6f7e6 !important; /* зелёный важнее */
+            background-color: #e6f7e6 !important;
         }
         tr.today-deadline-row a {
             color: #0044cc;
@@ -274,12 +291,27 @@
             margin-right: 4px;
             font-size: 0.8rem;
         }
+        .toast-notify {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #1e2a3a;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 40px;
+            font-size: 0.85rem;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            transition: opacity 0.3s;
+            opacity: 0;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
 <div class="container">
     <div class="header">
-        <h1>План салообразования (Мисник Андрей)</h1>
+        <h1>План самообразования (Мисник Андрей)</h1>
         <div class="sub">
             <span>📌 Отмечайте пройденные материалы — прогресс сохраняется</span>
             <span class="stats-badge" id="progressStats">0 / 0 завершено</span>
@@ -288,6 +320,7 @@
     <div class="toolbar">
         <button id="sortByDeadlineBtn" class="sort-btn active">📅 Сортировать по дедлайну (раньше → позже)</button>
         <button id="resetSortBtn" class="sort-btn">🔄 Исходный порядок (как в SAMPLE_LINKS)</button>
+        <button id="resyncFirebaseBtn" class="sync-btn">🔄 РЕСИНКРОНИЗАЦИЯ: Обновить все ссылки из SAMPLE_LINKS</button>
     </div>
     <div class="table-wrapper">
         <table>
@@ -304,14 +337,15 @@
         </table>
     </div>
     <div class="footer-note">
-        <span>✅ Чекбокс = пройдено (зеленый фон). Желтый = не пройдено, дедлайн в будущем. Красный = не пройдено, дедлайн просрочен. 🔵 СИНИЙ = сегодня дедлайн (если не пройдено). Сортировка по дедлайну или исходный порядок.</span>
-        <button class="btn-reset" id="demoResetBtn" style="display: none;">🔄 Сбросить все отметки (демо)</button>
+        <span>✅ Чекбокс = пройдено (зеленый фон). Желтый = не пройдено, дедлайн в будущем. Красный = не пройдено, дедлайн просрочен. 🔵 СИНИЙ = сегодня дедлайн (если не пройдено). Сортировка по дедлайну или исходный порядок. Кнопка "РЕСИНКРОНИЗАЦИЯ" синхронизирует все ссылки из SAMPLE_LINKS с Firebase: добавляет новые, удаляет лишние, сохраняет ваш прогресс (isCompleted) по совпадающим URL/title.</span>
+        <button class="btn-reset" id="demoResetBtn" style="display: none;">🔄 Сбросить все отметки</button>
     </div>
 </div>
+<div id="toastMsg" class="toast-notify"></div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getFirestore, collection, getDocs, doc, updateDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { getFirestore, collection, getDocs, doc, updateDoc, setDoc, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
     // ======================== КОНФИГУРАЦИЯ FIREBASE ========================
     const firebaseConfig = {
@@ -334,12 +368,12 @@
         console.log("✅ Firebase подключён успешно");
     } catch (error) {
         console.warn("⚠️ Ошибка Firebase:", error.message);
-        console.warn("Переход в режим локального хранения");
         isFirebaseReady = false;
     }
 
-    // ======================== РАСШИРЕННЫЕ ДАННЫЕ С ДЕДЛАЙНАМИ ========================
-    // Каждый элемент: title, url, isCompleted, deadline (строка в формате YYYY-MM-DD)
+    // ======================== ЭТАЛОННЫЙ СПИСОК SAMPLE_LINKS (ИСХОДНЫЕ ДАННЫЕ) ========================
+    // Вы можете менять любые строки: добавлять, удалять, править дедлайны, названия, url.
+    // Функция ресинхронизации приведёт Firebase в соответствие с этим массивом, сохраняя статусы isCompleted.
     const SAMPLE_LINKS = [
     { title: "Concurrency. Intro", url: "https://disk.yandex.ru/i/RcnyLS0suIyEdQ", isCompleted: false, deadline: "2026-04-10" },
     { title: "Concurrency. Механика потоков, файберы", url: "https://disk.yandex.ru/i/W_v-28wK2LjqFQ", isCompleted: false, deadline: "2026-04-12" },
@@ -487,11 +521,22 @@
     { title: "C++ 61. Единицы трансляции. ODR. Внешнее и внутреннее связывание", url: "https://www.youtube.com/watch?v=SSLgoegwEgU&list=PLmSYEYYGhnBviRYhIDty-CSTDS16a3whl&index=61", isCompleted: false, deadline: "2026-06-26" },
     ];
 
-    let originalLinksData = [];    // эталон в порядке SAMPLE_LINKS (как в HTML)
-    let currentLinksData = [];      // текущий отображаемый массив (может быть отсортирован)
-    let sortMode = "deadline";      // 'deadline' или 'original'
+    let originalLinksData = [];     // текущие данные из Firebase (или локальные)
+    let currentLinksData = [];       // отображаемый массив (может быть отсортирован)
+    let sortMode = "deadline";       // 'deadline' или 'original'
     const tableBody = document.getElementById('links-table-body');
     const progressSpan = document.getElementById('progressStats');
+
+    // Вспомогательные функции уведомлений
+    function showToast(message, duration = 3000) {
+        const toast = document.getElementById('toastMsg');
+        toast.textContent = message;
+        toast.style.opacity = '1';
+        toast.style.pointerEvents = 'none';
+        setTimeout(() => {
+            toast.style.opacity = '0';
+        }, duration);
+    }
 
     function getTodayDate() {
         const today = new Date();
@@ -499,23 +544,23 @@
         return today;
     }
 
-    // Проверка, совпадает ли дедлайн с сегодняшней датой (только для непройденных строк)
     function isTodayDeadline(deadlineStr, isCompleted) {
         if (isCompleted) return false;
         if (!deadlineStr) return false;
         const today = getTodayDate();
         const deadlineDate = new Date(deadlineStr);
+        if (isNaN(deadlineDate.getTime())) return false;
         deadlineDate.setHours(0, 0, 0, 0);
         return deadlineDate.getTime() === today.getTime();
     }
 
-    // Класс строки с учётом синего для today-deadline
     function getRowClass(link) {
         if (link.isCompleted) return 'completed-row';
         if (isTodayDeadline(link.deadline, link.isCompleted)) return 'today-deadline-row';
         if (!link.deadline) return '';
         const today = getTodayDate();
         const deadlineDate = new Date(link.deadline);
+        if (isNaN(deadlineDate.getTime())) return '';
         deadlineDate.setHours(0, 0, 0, 0);
         if (deadlineDate >= today) return 'warning-row';
         else return 'danger-row';
@@ -551,7 +596,7 @@
             checkbox.checked = link.isCompleted;
             checkbox.addEventListener('change', async (e) => {
                 link.isCompleted = checkbox.checked;
-                renderTable(); // обновить цвета
+                renderTable(); 
                 await saveStatusToStorage(link.id, link.isCompleted);
             });
             tdCheck.appendChild(checkbox);
@@ -577,7 +622,7 @@
                 const textSpan = document.createElement('span');
                 textSpan.textContent = deadlineText;
                 if (isToday && !link.isCompleted) textSpan.style.color = '#0055cc';
-                else if (!link.isCompleted && new Date(link.deadline) < getTodayDate()) textSpan.style.color = '#c62828';
+                else if (!link.isCompleted && link.deadline && new Date(link.deadline) < getTodayDate()) textSpan.style.color = '#c62828';
                 badgeSpan.appendChild(textSpan);
                 tdDeadline.appendChild(badgeSpan);
             } else {
@@ -596,7 +641,6 @@
         progressSpan.textContent = `${completedCount} / ${currentLinksData.length} завершено`;
     }
 
-    // Сортировка по дедлайну (раньше -> позже, null в конце)
     function sortByDeadline() {
         const sorted = [...currentLinksData];
         sorted.sort((a,b) => {
@@ -608,10 +652,11 @@
         currentLinksData = sorted;
         sortMode = "deadline";
         renderTable();
+        document.getElementById('sortByDeadlineBtn').classList.add('active');
+        document.getElementById('resetSortBtn').classList.remove('active');
     }
 
     function resetToOriginalOrder() {
-        // Восстанавливаем порядок оригинального SAMPLE_LINKS (сохраняя актуальные статусы isCompleted)
         const originalIdsOrder = originalLinksData.map(item => item.id);
         const newOrder = [];
         for (let id of originalIdsOrder) {
@@ -625,18 +670,184 @@
         currentLinksData = newOrder;
         sortMode = "original";
         renderTable();
+        document.getElementById('resetSortBtn').classList.add('active');
+        document.getElementById('sortByDeadlineBtn').classList.remove('active');
     }
 
-    async function saveStatusToStorage(docId, isChecked) { /* как в оригинале */ 
-        if (isFirebaseReady && db) {
-            try { await updateDoc(doc(db, "links", docId), { isCompleted: isChecked }); } catch(err) { saveToLocalStorageFallback(docId, isChecked); }
-        } else { saveToLocalStorageFallback(docId, isChecked); }
+    async function saveStatusToStorage(docId, isChecked) {
+        if (isFirebaseReady && db && docId && !docId.startsWith('local_')) {
+            try {
+                await updateDoc(doc(db, "links", docId), { isCompleted: isChecked });
+                console.log(`Статус ${docId} обновлён в Firebase`);
+            } catch(err) {
+                console.warn("Ошибка Firebase, сохраняю локально", err);
+                saveToLocalStorageFallback();
+            }
+        } else {
+            saveToLocalStorageFallback();
+        }
     }
-    function saveToLocalStorageFallback(docId, isChecked) { /* упрощённо */ 
+
+    function saveToLocalStorageFallback() {
         const toStore = currentLinksData.map(l => ({ id: l.id, title: l.title, url: l.url, isCompleted: l.isCompleted, deadline: l.deadline }));
         localStorage.setItem("study_plan_deadlines", JSON.stringify(toStore));
     }
 
+    // ================ ГЛАВНАЯ ФУНКЦИЯ РЕСИНХРОНИЗАЦИИ ================
+    // Принцип: берём эталон SAMPLE_LINKS, загружаем текущие данные из Firebase,
+    // сопоставляем по уникальному признаку (сначала по URL, затем по title),
+    // сохраняем isCompleted из существующих записей, добавляем новые, удаляем те, которых нет в эталоне.
+    async function resyncAllLinksFromSampleToFirebase() {
+        if (!isFirebaseReady || !db) {
+            showToast("❌ Firebase не подключен. Работаем в локальном режиме. Синхронизация недоступна.", 4000);
+            return;
+        }
+        
+        showToast("🔄 Запущена ресинхронизация с SAMPLE_LINKS...", 2000);
+        
+        try {
+            // 1. Получаем все текущие документы из коллекции "links"
+            const querySnapshot = await getDocs(collection(db, "links"));
+            const existingDocs = [];
+            querySnapshot.forEach(docSnap => {
+                existingDocs.push({
+                    id: docSnap.id,
+                    title: docSnap.data().title,
+                    url: docSnap.data().url,
+                    isCompleted: docSnap.data().isCompleted === true,
+                    deadline: docSnap.data().deadline || null
+                });
+            });
+            
+            // 2. Создаём карту для быстрого поиска существующих записей по url и title (для сохранения прогресса)
+            const mapByUrl = new Map();
+            const mapByTitle = new Map();
+            for (const doc of existingDocs) {
+                if (doc.url) mapByUrl.set(doc.url, doc);
+                if (doc.title) mapByTitle.set(doc.title, doc);
+            }
+            
+            // 3. Подготавливаем список новых данных на основе SAMPLE_LINKS, сохраняя isCompleted где возможно
+            const newLinksToUpsert = [];
+            const processedUrls = new Set();
+            
+            for (const sample of SAMPLE_LINKS) {
+                let existing = null;
+                // Сначала ищем по URL (самый точный идентификатор)
+                if (sample.url && mapByUrl.has(sample.url)) {
+                    existing = mapByUrl.get(sample.url);
+                } 
+                // Если не нашли по URL, ищем по заголовку (на случай смены ссылки, но сохраняем прогресс)
+                else if (sample.title && mapByTitle.has(sample.title)) {
+                    existing = mapByTitle.get(sample.title);
+                }
+                
+                const finalIsCompleted = existing ? existing.isCompleted : (sample.isCompleted || false);
+                const finalId = existing ? existing.id : null; // если существует, используем старый ID
+                
+                newLinksToUpsert.push({
+                    id: finalId,
+                    title: sample.title,
+                    url: sample.url,
+                    isCompleted: finalIsCompleted,
+                    deadline: sample.deadline || null
+                });
+                if (sample.url) processedUrls.add(sample.url);
+            }
+            
+            // 4. Определяем какие документы нужно удалить (те, что есть в Firebase, но отсутствуют в SAMPLE_LINKS)
+            const docsToDelete = [];
+            for (const existing of existingDocs) {
+                let foundInSample = false;
+                for (const sample of SAMPLE_LINKS) {
+                    if (existing.url && existing.url === sample.url) {
+                        foundInSample = true;
+                        break;
+                    }
+                    if (existing.title === sample.title && (!existing.url || !sample.url || existing.url === sample.url)) {
+                        foundInSample = true;
+                        break;
+                    }
+                }
+                // Также если url нет в выборке, но заголовок совпадает — оставляем (но выше уже проверка)
+                if (!foundInSample) {
+                    docsToDelete.push(existing.id);
+                }
+            }
+            
+            // 5. Выполняем batch-операции для атомарности
+            const batch = writeBatch(db);
+            
+            // Добавляем или обновляем документы
+            for (const link of newLinksToUpsert) {
+                const docRef = link.id ? doc(db, "links", link.id) : doc(collection(db, "links"));
+                const dataToSet = {
+                    title: link.title,
+                    url: link.url,
+                    isCompleted: link.isCompleted,
+                    deadline: link.deadline
+                };
+                if (link.id) {
+                    batch.update(docRef, dataToSet);
+                } else {
+                    batch.set(docRef, dataToSet);
+                }
+            }
+            
+            // Удаляем лишние
+            for (const delId of docsToDelete) {
+                const docRef = doc(db, "links", delId);
+                batch.delete(docRef);
+            }
+            
+            await batch.commit();
+            
+            // 6. Перезагружаем данные из Firebase после ресинхронизации
+            await reloadDataFromFirestore();
+            
+            const addedCount = newLinksToUpsert.filter(l => !l.id).length;
+            const deletedCount = docsToDelete.length;
+            const updatedCount = newLinksToUpsert.filter(l => l.id && !docsToDelete.includes(l.id)).length;
+            showToast(`✅ Ресинхронизация завершена! Добавлено: ${addedCount}, обновлено: ${updatedCount}, удалено: ${deletedCount}. Прогресс сохранён.`, 5000);
+            
+        } catch (error) {
+            console.error("Ошибка ресинхронизации:", error);
+            showToast(`❌ Ошибка ресинхронизации: ${error.message}`, 5000);
+        }
+    }
+    
+    // Перезагрузка данных из Firestore в память
+    async function reloadDataFromFirestore() {
+        if (!isFirebaseReady || !db) return;
+        try {
+            const querySnapshot = await getDocs(collection(db, "links"));
+            const firestoreLinks = [];
+            querySnapshot.forEach(docSnap => {
+                const data = docSnap.data();
+                firestoreLinks.push({
+                    id: docSnap.id,
+                    title: data.title,
+                    url: data.url,
+                    isCompleted: data.isCompleted === true,
+                    deadline: data.deadline || null
+                });
+            });
+            originalLinksData = [...firestoreLinks];
+            currentLinksData = [...firestoreLinks];
+            // Сохраняем порядок сортировки по умолчанию (по дедлайну, как было изначально)
+            if (sortMode === "deadline") {
+                sortByDeadline();
+            } else {
+                resetToOriginalOrder();
+            }
+            renderTable();
+            saveToLocalStorageFallback(); // также обновляем локальный кэш
+        } catch (err) {
+            console.warn("Ошибка перезагрузки данных", err);
+        }
+    }
+    
+    // Первоначальная загрузка данных (Firebase или локальный фолбэк)
     async function loadData() {
         if (isFirebaseReady && db) {
             try {
@@ -646,58 +857,101 @@
                     const data = docSnap.data();
                     firestoreLinks.push({ id: docSnap.id, title: data.title, url: data.url, isCompleted: data.isCompleted === true, deadline: data.deadline || null });
                 });
+                
+                // Если коллекция пуста - инициализируем данными из SAMPLE_LINKS
                 if (firestoreLinks.length === 0) {
                     const linksCol = collection(db, "links");
-                    for (const sample of SAMPLE_LINKS) { await setDoc(doc(linksCol), { title: sample.title, url: sample.url, isCompleted: sample.isCompleted, deadline: sample.deadline }); }
+                    for (const sample of SAMPLE_LINKS) {
+                        await setDoc(doc(linksCol), {
+                            title: sample.title,
+                            url: sample.url,
+                            isCompleted: sample.isCompleted,
+                            deadline: sample.deadline
+                        });
+                    }
+                    // Перезагружаем
                     const newSnap = await getDocs(collection(db, "links"));
                     firestoreLinks = [];
-                    newSnap.forEach(docSnap => { const d = docSnap.data(); firestoreLinks.push({ id: docSnap.id, title: d.title, url: d.url, isCompleted: d.isCompleted, deadline: d.deadline }); });
+                    newSnap.forEach(docSnap => {
+                        const d = docSnap.data();
+                        firestoreLinks.push({ id: docSnap.id, title: d.title, url: d.url, isCompleted: d.isCompleted, deadline: d.deadline });
+                    });
                 }
                 originalLinksData = [...firestoreLinks];
                 currentLinksData = [...firestoreLinks];
-                sortByDeadline(); // сразу применяем сортировку по дедлайну (как требуется в задании)
-            } catch(e) { loadLocalFallback(); }
-        } else { loadLocalFallback(); }
+                sortByDeadline(); // сортировка по дедлайну при старте
+            } catch(e) {
+                console.warn("Ошибка загрузки Firebase, переключаем на локальный режим", e);
+                loadLocalFallback();
+            }
+        } else {
+            loadLocalFallback();
+        }
         setupUI();
     }
-
+    
     function loadLocalFallback() {
         const stored = localStorage.getItem("study_plan_deadlines");
         if (stored) {
             try { 
                 const parsed = JSON.parse(stored);
-                if (parsed.length) { originalLinksData = parsed; currentLinksData = [...parsed]; sortByDeadline(); return; }
+                if (parsed.length) { 
+                    originalLinksData = parsed; 
+                    currentLinksData = [...parsed]; 
+                    sortByDeadline(); 
+                    return; 
+                }
             } catch(e) {}
         }
+        // Если нет локального хранилища, используем SAMPLE_LINKS
         originalLinksData = SAMPLE_LINKS.map((item, idx) => ({ ...item, id: `local_${idx}` }));
         currentLinksData = [...originalLinksData];
         sortByDeadline();
     }
-
+    
     function setupUI() {
-        document.getElementById('sortByDeadlineBtn').addEventListener('click', () => sortByDeadline());
-        document.getElementById('resetSortBtn').addEventListener('click', () => resetToOriginalOrder());
-        const resetBtn = document.getElementById('demoResetBtn');
-        if (resetBtn) {
-            resetBtn.style.display = 'inline-flex';
-            resetBtn.addEventListener('click', async () => {
-                if(confirm("Снять все отметки?")) {
-                    for(let link of currentLinksData) link.isCompleted = false;
-                    renderTable();
-                    if(isFirebaseReady && db) for(let link of currentLinksData) await updateDoc(doc(db,"links",link.id),{isCompleted:false});
-                    else syncAllLocal();
+        const sortDeadlineBtn = document.getElementById('sortByDeadlineBtn');
+        const resetSortBtn = document.getElementById('resetSortBtn');
+        const resyncBtn = document.getElementById('resyncFirebaseBtn');
+        const resetAllBtn = document.getElementById('demoResetBtn');
+        
+        if (sortDeadlineBtn) sortDeadlineBtn.addEventListener('click', () => sortByDeadline());
+        if (resetSortBtn) resetSortBtn.addEventListener('click', () => resetToOriginalOrder());
+        if (resyncBtn) {
+            resyncBtn.addEventListener('click', async () => {
+                if (confirm("⚠️ ВНИМАНИЕ: ресинхронизация приведёт коллекцию Firebase в точное соответствие с SAMPLE_LINKS.\nНовые ссылки будут добавлены, отсутствующие — удалены. ВАШ ПРОГРЕСС (галочки) по совпадающим URL/названиям сохранится.\nПродолжить?")) {
+                    await resyncAllLinksFromSampleToFirebase();
                 }
             });
         }
+        if (resetAllBtn) {
+            resetAllBtn.style.display = 'inline-flex';
+            resetAllBtn.addEventListener('click', async () => {
+                if(confirm("Снять все отметки (сбросить прогресс)?")) {
+                    for(let link of currentLinksData) link.isCompleted = false;
+                    renderTable();
+                    if(isFirebaseReady && db) {
+                        for(let link of currentLinksData) {
+                            if (link.id && !link.id.startsWith('local_')) {
+                                await updateDoc(doc(db,"links",link.id),{isCompleted:false});
+                            }
+                        }
+                    }
+                    saveToLocalStorageFallback();
+                    showToast("✅ Все отметки сброшены", 2000);
+                }
+            });
+        }
+        
         const footerDiv = document.querySelector('.footer-note');
         if(footerDiv && !footerDiv.querySelector('.sync-status')) {
             const syncSpan = document.createElement('span');
             syncSpan.className = 'sync-status';
-            syncSpan.innerHTML = isFirebaseReady ? '☁️ Firebase синхронизация' : '📀 Локальное хранилище';
+            syncSpan.innerHTML = isFirebaseReady ? '☁️ Firebase синхронизация (активна)' : '📀 Локальное хранилище';
             footerDiv.prepend(syncSpan);
         }
     }
-    function syncAllLocal() { localStorage.setItem("study_plan_deadlines", JSON.stringify(currentLinksData.map(l=>({id:l.id,title:l.title,url:l.url,isCompleted:l.isCompleted,deadline:l.deadline})))); }
+    
     loadData();
 </script>
 </body>
