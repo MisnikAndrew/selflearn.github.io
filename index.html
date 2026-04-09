@@ -3,69 +3,342 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>План обучения — Исправленная дедупликация</title>
+    <title>Мой план обучения — дедупликация при синхронизации</title>
     <style>
-        /* Стили оставлены без изменений для сохранения интерфейса */
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', Roboto, sans-serif; background: #f4f7fc; padding: 2rem 1rem; min-height: 100vh; display: flex; justify-content: center; align-items: center; }
-        .container { max-width: 1300px; width: 100%; margin: 0 auto; background: white; border-radius: 32px; box-shadow: 0 20px 35px -12px rgba(0, 0, 0, 0.1); overflow: hidden; }
-        .header { background: linear-gradient(135deg, #1e2a3a, #0f1724); padding: 1.8rem 2rem; color: white; }
-        .header h1 { font-size: 1.9rem; font-weight: 600; display: flex; align-items: center; gap: 12px; }
-        .header h1:before { content: "📘"; }
-        .sub { font-size: 0.9rem; opacity: 0.8; margin-top: 8px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-        .stats-badge { background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 40px; font-size: 0.8rem; }
-        .toolbar { background: #f1f5f9; padding: 0.6rem 1.5rem; display: flex; justify-content: flex-end; gap: 12px; border-bottom: 1px solid #e2e8f0; }
-        .sort-btn { background: white; border: 1px solid #cbd5e1; padding: 4px 12px; border-radius: 30px; font-size: 0.75rem; cursor: pointer; }
-        .sort-btn.active { background: #1e2a3a; color: white; border-color: #1e2a3a; }
-        .sync-btn { background: #2c6e2c; color: white; border: none; padding: 6px 18px; border-radius: 30px; font-size: 0.75rem; font-weight: 600; cursor: pointer; margin-left: auto; }
-        .sync-btn:hover { background: #1e4a1e; }
-        .table-wrapper { overflow-x: auto; }
-        table { width: 100%; border-collapse: collapse; }
-        th { text-align: left; padding: 1rem 1.2rem; background: #f8fafc; border-bottom: 2px solid #e2e8f0; }
-        td { padding: 1rem 1.2rem; border-bottom: 1px solid #edf2f7; }
-        tr.completed-row { background-color: #e6f7e6; }
-        tr.completed-row a { text-decoration: line-through; color: #6c757d; }
-        tr.warning-row { background-color: #fff9c4; }
-        tr.danger-row { background-color: #ffe6e5; }
-        tr.today-deadline-row { background-color: #b8d9ff !important; }
-        a { text-decoration: none; color: #2563eb; font-weight: 500; }
-        input[type="checkbox"] { width: 20px; height: 20px; cursor: pointer; accent-color: #2b6e3c; }
-        .deadline-badge { background: rgba(0,0,0,0.05); padding: 4px 8px; border-radius: 20px; font-size: 0.85rem; }
-        .footer-note { background: #f1f5f9; padding: 0.8rem 1.5rem; font-size: 0.75rem; color: #334155; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; }
-        .toast-notify { position: fixed; bottom: 20px; right: 20px; background: #1e2a3a; color: white; padding: 10px 20px; border-radius: 40px; font-size: 0.85rem; opacity: 0; transition: 0.3s; pointer-events: none; z-index: 1000; }
-        .btn-reset { background: none; border: none; text-decoration: underline; cursor: pointer; color: #4b5563; font-size: 0.7rem; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+            background: #f4f7fc;
+            padding: 2rem 1rem;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .container {
+            max-width: 1300px;
+            width: 100%;
+            margin: 0 auto;
+            background: white;
+            border-radius: 32px;
+            box-shadow: 0 20px 35px -12px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            transition: all 0.2s ease;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1e2a3a, #0f1724);
+            padding: 1.8rem 2rem;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 1.9rem;
+            font-weight: 600;
+            letter-spacing: -0.3px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header h1:before {
+            content: "📘";
+            font-size: 1.9rem;
+        }
+
+        .sub {
+            font-size: 0.9rem;
+            opacity: 0.8;
+            margin-top: 8px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .stats-badge {
+            background: rgba(255,255,255,0.2);
+            padding: 4px 12px;
+            border-radius: 40px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .toolbar {
+            background: #f1f5f9;
+            padding: 0.6rem 1.5rem;
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 0.8rem;
+            flex-wrap: wrap;
+        }
+
+        .sort-btn {
+            background: white;
+            border: 1px solid #cbd5e1;
+            padding: 4px 12px;
+            border-radius: 30px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: #1e293b;
+        }
+
+        .sort-btn:hover {
+            background: #e2e8f0;
+            border-color: #94a3b8;
+        }
+
+        .sort-btn.active {
+            background: #1e2a3a;
+            border-color: #1e2a3a;
+            color: white;
+        }
+
+        .sync-btn {
+            background: #2c6e2c;
+            color: white;
+            border: none;
+            padding: 4px 16px;
+            border-radius: 30px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .sync-btn:hover {
+            background: #1e4a1e;
+            transform: scale(0.98);
+        }
+
+        .table-wrapper {
+            overflow-x: auto;
+            padding: 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 1rem;
+        }
+
+        th {
+            text-align: left;
+            padding: 1rem 1.2rem;
+            background-color: #f8fafc;
+            color: #1e293b;
+            font-weight: 600;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        td {
+            padding: 1rem 1.2rem;
+            border-bottom: 1px solid #edf2f7;
+            vertical-align: middle;
+            transition: background 0.2s;
+        }
+
+        tr.completed-row {
+            background-color: #e6f7e6;
+        }
+        tr.warning-row {
+            background-color: #fff9c4;
+        }
+        tr.danger-row {
+            background-color: #ffe6e5;
+        }
+        tr.today-deadline-row {
+            background-color: #b8d9ff !important;
+        }
+        tr.completed-row.today-deadline-row {
+            background-color: #e6f7e6 !important;
+        }
+        tr.today-deadline-row a {
+            color: #0044cc;
+            font-weight: 600;
+        }
+
+        tr:hover td {
+            filter: brightness(0.97);
+        }
+
+        .completed-row a {
+            text-decoration: line-through;
+            color: #6c757d;
+            opacity: 0.8;
+        }
+
+        a {
+            text-decoration: none;
+            color: #2563eb;
+            font-weight: 500;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        a:hover {
+            color: #1d4ed8;
+            text-decoration: underline;
+        }
+
+        a:after {
+            content: "↗";
+            font-size: 0.8rem;
+            opacity: 0.6;
+        }
+
+        input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            accent-color: #2b6e3c;
+            transform: scale(1);
+            margin-right: 4px;
+        }
+
+        .deadline-cell {
+            font-size: 0.85rem;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        .deadline-badge {
+            background: rgba(0,0,0,0.05);
+            padding: 4px 8px;
+            border-radius: 20px;
+            display: inline-block;
+        }
+        .deadline-overdue {
+            color: #c62828;
+            font-weight: 600;
+        }
+        .deadline-today {
+            color: #0055cc;
+            font-weight: 700;
+        }
+
+        .footer-note {
+            background: #f1f5f9;
+            padding: 0.8rem 1.5rem;
+            font-size: 0.75rem;
+            color: #334155;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .sync-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.7rem;
+            font-weight: normal;
+            background: #e6f0ff;
+            padding: 4px 12px;
+            border-radius: 50px;
+            color: #1e40af;
+        }
+
+        .btn-reset {
+            background: none;
+            border: none;
+            color: #4b5563;
+            font-size: 0.7rem;
+            cursor: pointer;
+            text-decoration: underline;
+            padding: 4px 8px;
+            border-radius: 30px;
+            transition: 0.2s;
+        }
+
+        .btn-reset:hover {
+            background: #e2e8f0;
+            color: #0f1724;
+        }
+
+        @media (max-width: 700px) {
+            .header h1 { font-size: 1.5rem; }
+            th, td { padding: 0.8rem 0.8rem; }
+            .header { padding: 1.2rem 1rem; }
+            .deadline-cell { font-size: 0.75rem; white-space: normal; }
+            .toolbar { justify-content: center; }
+        }
+
+        .empty-row td {
+            text-align: center;
+            color: #94a3b8;
+            font-style: italic;
+            padding: 2rem;
+        }
+        .deadline-icon {
+            margin-right: 4px;
+            font-size: 0.8rem;
+        }
+        .toast-notify {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #1e2a3a;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 40px;
+            font-size: 0.85rem;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            transition: opacity 0.3s;
+            opacity: 0;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
 <div class="container">
     <div class="header">
-        <h1>План обучения (Дедупликация URL)</h1>
+        <h1>План салообразования (с дедупликацией)</h1>
         <div class="sub">
-            <span class="stats-badge" id="progressStats">Загрузка...</span>
+            <span>📌 Отмечайте пройденные материалы — прогресс сохраняется</span>
+            <span class="stats-badge" id="progressStats">0 / 0 завершено</span>
         </div>
     </div>
     <div class="toolbar">
-        <button id="sortByDeadlineBtn" class="sort-btn active">📅 По дедлайну</button>
+        <button id="sortByDeadlineBtn" class="sort-btn active">📅 Сортировать по дедлайну (раньше → позже)</button>
         <button id="resetSortBtn" class="sort-btn">🔄 Исходный порядок</button>
-        <button id="resyncFirebaseBtn" class="sync-btn">🚀 ПОЛНАЯ СИНХРОНИЗАЦИЯ И УДАЛЕНИЕ ДУБЛИКАТОВ</button>
+        <button id="resyncFirebaseBtn" class="sync-btn">🔄 СИНХРОНИЗАЦИЯ + ДЕДУПЛИКАЦИЯ (URL - primary key)</button>
     </div>
     <div class="table-wrapper">
         <table>
             <thead>
                 <tr>
-                    <th style="width: 60px">OK</th>
-                    <th>Название материала</th>
+                    <th style="width: 60px">Статус</th>
+                    <th>Название</th>
                     <th style="width: 200px">📅 Дедлайн</th>
                 </tr>
             </thead>
             <tbody id="links-table-body">
-                <tr class="empty-row"><td colspan="3">⏳ Загрузка из Firebase...</td></tr>
+                <tr class="empty-row"><td colspan="3">⏳ Загрузка учебных материалов...</td></tr>
             </tbody>
         </table>
     </div>
-    <div class="footer-note" id="footerNote">
-        <span>Дедупликация: URL — уникальный ключ. Прогресс (галочка) сохраняется при объединении.</span>
-        <button class="btn-reset" id="demoResetBtn">Сбросить всё</button>
+    <div class="footer-note">
+        <span>✅ Чекбокс = пройдено. 🔄 При нажатии «СИНХРОНИЗАЦИЯ + ДЕДУПЛИКАЦИЯ» все дубликаты по URL будут удалены, оставлен один элемент с isCompleted = true, если хотя бы у одного из дубликатов была галочка. Порядок очищается от повторов.</span>
+        <button class="btn-reset" id="demoResetBtn" style="display: none;">🔄 Сбросить все отметки</button>
     </div>
 </div>
 <div id="toastMsg" class="toast-notify"></div>
@@ -74,7 +347,7 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getFirestore, collection, getDocs, doc, updateDoc, setDoc, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-    // Конфигурация Firebase
+    // ======================== КОНФИГУРАЦИЯ FIREBASE ========================
     const firebaseConfig = {
         apiKey: "AIzaSyBYmca3nKbyB0e3VpCvFJZ3KsDSz8a1nKs",
         authDomain: "selflearn-462ff.firebaseapp.com",
@@ -84,10 +357,21 @@
         appId: "1:530046188190:web:4f1f5ceb63eb5748b4d98f"
     };
 
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
+    let isFirebaseReady = false;
+    let db = null;
+    let app = null;
 
-    // Эталонный список (сокращен для примера, вставьте свой полный список здесь)
+    try {
+        app = initializeApp(firebaseConfig);
+        db = getFirestore(app);
+        isFirebaseReady = true;
+        console.log("✅ Firebase подключён успешно");
+    } catch (error) {
+        console.warn("⚠️ Ошибка Firebase:", error.message);
+        isFirebaseReady = false;
+    }
+
+    // ======================== ЭТАЛОННЫЙ СПИСОК (SAMPLE_LINKS) ========================
     const SAMPLE_LINKS = [
     { title: "Concurrency. Intro", url: "https://disk.yandex.ru/i/RcnyLS0suIyEdQ", isCompleted: false, deadline: "2026-04-10" },
     { title: "Concurrency. Механика потоков, файберы", url: "https://disk.yandex.ru/i/W_v-28wK2LjqFQ", isCompleted: false, deadline: "2026-04-12" },
@@ -235,81 +519,235 @@
     { title: "C++ 61. Единицы трансляции. ODR. Внешнее и внутреннее связывание", url: "https://www.youtube.com/watch?v=SSLgoegwEgU&list=PLmSYEYYGhnBviRYhIDty-CSTDS16a3whl&index=61", isCompleted: false, deadline: "2026-06-26" },
     ];
 
-    let currentLinksData = [];
     let originalLinksData = [];
+    let currentLinksData = [];
+    let sortMode = "deadline";
+    const tableBody = document.getElementById('links-table-body');
+    const progressSpan = document.getElementById('progressStats');
 
-    // --- УТИЛИТЫ ---
-    function showToast(msg) {
-        const t = document.getElementById('toastMsg');
-        t.textContent = msg; t.style.opacity = '1';
-        setTimeout(() => t.style.opacity = '0', 3000);
+    function showToast(message, duration = 3000) {
+        const toast = document.getElementById('toastMsg');
+        toast.textContent = message;
+        toast.style.opacity = '1';
+        toast.style.pointerEvents = 'none';
+        setTimeout(() => {
+            toast.style.opacity = '0';
+        }, duration);
     }
 
-    function getToday() { const d = new Date(); d.setHours(0,0,0,0); return d; }
+    function getTodayDate() {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        return today;
+    }
 
-    // --- СИНХРОНИЗАЦИЯ И ИСПРАВЛЕННАЯ ДЕДУПЛИКАЦИЯ ---
+    function isTodayDeadline(deadlineStr, isCompleted) {
+        if (isCompleted) return false;
+        if (!deadlineStr) return false;
+        const today = getTodayDate();
+        const deadlineDate = new Date(deadlineStr);
+        if (isNaN(deadlineDate.getTime())) return false;
+        deadlineDate.setHours(0, 0, 0, 0);
+        return deadlineDate.getTime() === today.getTime();
+    }
+
+    function getRowClass(link) {
+        if (link.isCompleted) return 'completed-row';
+        if (isTodayDeadline(link.deadline, link.isCompleted)) return 'today-deadline-row';
+        if (!link.deadline) return '';
+        const today = getTodayDate();
+        const deadlineDate = new Date(link.deadline);
+        if (isNaN(deadlineDate.getTime())) return '';
+        deadlineDate.setHours(0, 0, 0, 0);
+        if (deadlineDate >= today) return 'warning-row';
+        else return 'danger-row';
+    }
+
+    function formatDeadline(deadlineStr) {
+        if (!deadlineStr) return '—';
+        const dateObj = new Date(deadlineStr);
+        if (isNaN(dateObj.getTime())) return deadlineStr;
+        return dateObj.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }).replace(' г.', '');
+    }
+
+    function renderTable() {
+        if (!tableBody) return;
+        tableBody.innerHTML = '';
+        if (currentLinksData.length === 0) {
+            const emptyRow = document.createElement('tr');
+            emptyRow.className = 'empty-row';
+            emptyRow.innerHTML = '<td colspan="3">📚 Нет ссылок. Добавьте материалы.</td>';
+            tableBody.appendChild(emptyRow);
+            updateProgressUI();
+            return;
+        }
+
+        for (const link of currentLinksData) {
+            const tr = document.createElement('tr');
+            const rowClass = getRowClass(link);
+            if (rowClass) tr.classList.add(rowClass);
+            
+            const tdCheck = document.createElement('td');
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.checked = link.isCompleted;
+            checkbox.addEventListener('change', async (e) => {
+                link.isCompleted = checkbox.checked;
+                renderTable(); 
+                await saveStatusToStorage(link.id, link.isCompleted);
+            });
+            tdCheck.appendChild(checkbox);
+            
+            const tdLink = document.createElement('td');
+            const anchor = document.createElement('a');
+            anchor.href = link.url;
+            anchor.target = '_blank';
+            anchor.textContent = link.title;
+            tdLink.appendChild(anchor);
+            
+            const tdDeadline = document.createElement('td');
+            tdDeadline.className = 'deadline-cell';
+            if (link.deadline) {
+                const deadlineText = formatDeadline(link.deadline);
+                const isToday = isTodayDeadline(link.deadline, link.isCompleted);
+                const badgeSpan = document.createElement('span');
+                badgeSpan.className = 'deadline-badge';
+                const iconSpan = document.createElement('span');
+                iconSpan.className = 'deadline-icon';
+                iconSpan.textContent = isToday ? '🔵 ' : '📅 ';
+                badgeSpan.appendChild(iconSpan);
+                const textSpan = document.createElement('span');
+                textSpan.textContent = deadlineText;
+                if (isToday && !link.isCompleted) textSpan.style.color = '#0055cc';
+                else if (!link.isCompleted && link.deadline && new Date(link.deadline) < getTodayDate()) textSpan.style.color = '#c62828';
+                badgeSpan.appendChild(textSpan);
+                tdDeadline.appendChild(badgeSpan);
+            } else {
+                tdDeadline.textContent = '—';
+            }
+            tr.appendChild(tdCheck);
+            tr.appendChild(tdLink);
+            tr.appendChild(tdDeadline);
+            tableBody.appendChild(tr);
+        }
+        updateProgressUI();
+    }
+
+    function updateProgressUI() {
+        const completedCount = currentLinksData.filter(item => item.isCompleted === true).length;
+        progressSpan.textContent = `${completedCount} / ${currentLinksData.length} завершено`;
+    }
+
+    function sortByDeadline() {
+        const sorted = [...currentLinksData];
+        sorted.sort((a,b) => {
+            if (!a.deadline && !b.deadline) return 0;
+            if (!a.deadline) return 1;
+            if (!b.deadline) return -1;
+            return a.deadline.localeCompare(b.deadline);
+        });
+        currentLinksData = sorted;
+        sortMode = "deadline";
+        renderTable();
+        document.getElementById('sortByDeadlineBtn').classList.add('active');
+        document.getElementById('resetSortBtn').classList.remove('active');
+    }
+
+    function resetToOriginalOrder() {
+        const originalIdsOrder = originalLinksData.map(item => item.id);
+        const newOrder = [];
+        for (let id of originalIdsOrder) {
+            const found = currentLinksData.find(link => link.id === id);
+            if (found) newOrder.push(found);
+        }
+        currentLinksData = newOrder;
+        sortMode = "original";
+        renderTable();
+        document.getElementById('resetSortBtn').classList.add('active');
+        document.getElementById('sortByDeadlineBtn').classList.remove('active');
+    }
+
+    async function saveStatusToStorage(docId, isChecked) {
+        if (isFirebaseReady && db && docId && !docId.startsWith('local_')) {
+            try {
+                await updateDoc(doc(db, "links", docId), { isCompleted: isChecked });
+            } catch(err) {
+                saveToLocalStorageFallback();
+            }
+        } else {
+            saveToLocalStorageFallback();
+        }
+    }
+
+    function saveToLocalStorageFallback() {
+        const toStore = currentLinksData.map(l => ({ id: l.id, title: l.title, url: l.url, isCompleted: l.isCompleted, deadline: l.deadline }));
+        localStorage.setItem("study_plan_deadlines", JSON.stringify(toStore));
+    }
+
+    // ======================== ИСПРАВЛЕННАЯ ДЕДУПЛИКАЦИЯ ========================
     async function resyncWithDeduplication() {
-        showToast("🔍 Анализ дубликатов...");
+        if (!isFirebaseReady || !db) {
+            showToast("❌ Firebase не подключен");
+            return;
+        }
+        
+        showToast("🔄 Полная синхронизация и очистка дубликатов...", 3000);
+        
         try {
-            // 1. Получаем всё из Firebase
+            // 1. Получаем все документы из Firebase
             const snap = await getDocs(collection(db, "links"));
             const fireDocs = [];
             snap.forEach(d => fireDocs.push({ id: d.id, ...d.data() }));
 
             // 2. Группируем документы по URL
-            const urlGroups = new Map(); // URL -> { ids: [], isCompleted: bool }
+            // Map<URL, { ids: [id1, id2...], isCompleted: boolean }>
+            const urlGroups = new Map();
             fireDocs.forEach(doc => {
                 if (!urlGroups.has(doc.url)) {
                     urlGroups.set(doc.url, { ids: [], isCompleted: false });
                 }
                 const group = urlGroups.get(doc.url);
                 group.ids.push(doc.id);
-                if (doc.isCompleted) group.isCompleted = true; // Если хоть один дубль завершен, помечаем всю группу
+                if (doc.isCompleted) group.isCompleted = true; // Если хоть у одного дубля true, сохраняем true
             });
 
-            // 3. Дедуплицируем сам SAMPLE_LINKS (на случай ошибок в исходном коде)
+            // 3. Дедуплицируем эталонный список на всякий случай
             const uniqueSamples = new Map();
             SAMPLE_LINKS.forEach(s => uniqueSamples.set(s.url, s));
 
             const batch = writeBatch(db);
             const processedUrls = new Set();
             let deletedCount = 0;
-            let updatedCount = 0;
-            let createdCount = 0;
 
-            // 4. Основной цикл по эталонному списку
+            // 4. Синхронизируем эталон с базой
             for (const [url, sample] of uniqueSamples.entries()) {
                 processedUrls.add(url);
                 
                 if (urlGroups.has(url)) {
                     const group = urlGroups.get(url);
-                    const masterId = group.ids[0]; // Оставляем первый ID как основной
-                    const duplicates = group.ids.slice(1); // Все остальные — в корзину
+                    const masterId = group.ids[0]; // Оставляем первый ID
+                    const duplicates = group.ids.slice(1); // Все остальные на удаление
 
-                    // Обновляем основной документ актуальными данными из Sample + объединенный статус
+                    // Обновляем "мастер"-запись актуальным названием и дедлайном + объединенным статусом
                     batch.update(doc(db, "links", masterId), {
                         title: sample.title,
                         deadline: sample.deadline,
                         isCompleted: group.isCompleted 
                     });
-                    updatedCount++;
 
-                    // Удаляем дубликаты
+                    // Удаляем лишние ID
                     duplicates.forEach(dupId => {
                         batch.delete(doc(db, "links", dupId));
                         deletedCount++;
                     });
                 } else {
-                    // Если в базе нет такого URL — создаем
+                    // Если URL вообще нет в базе - создаем новый
                     const newRef = doc(collection(db, "links"));
-                    batch.set(newRef, {
-                        ...sample
-                    });
-                    createdCount++;
+                    batch.set(newRef, { ...sample });
                 }
             }
 
-            // 5. Удаляем то, чего нет в эталонном списке
+            // 5. Удаляем документы из базы, которых больше нет в SAMPLE_LINKS
             for (const [url, group] of urlGroups.entries()) {
                 if (!processedUrls.has(url)) {
                     group.ids.forEach(id => {
@@ -320,79 +758,95 @@
             }
 
             await batch.commit();
-            showToast(`✅ Готово! Удалено дублей: ${deletedCount}, Обновлено: ${updatedCount}, Создано: ${createdCount}`);
-            loadData(); // Перезагружаем интерфейс
-
-        } catch (e) {
-            console.error(e);
-            showToast("❌ Ошибка при синхронизации");
+            await reloadDataFromFirestore();
+            showToast(`✅ Готово! Удалено дубликатов/старых записей: ${deletedCount}`, 5000);
+            
+        } catch (error) {
+            console.error(error);
+            showToast(`❌ Ошибка: ${error.message}`, 5000);
         }
     }
 
-    // --- ОТОБРАЖЕНИЕ ---
-    function renderTable() {
-        const tbody = document.getElementById('links-table-body');
-        tbody.innerHTML = '';
-        
-        currentLinksData.forEach(link => {
-            const tr = document.createElement('tr');
-            if (link.isCompleted) tr.className = 'completed-row';
-            else {
-                const dead = new Date(link.deadline);
-                const today = getToday();
-                if (dead < today) tr.className = 'danger-row';
-                else if (dead.getTime() === today.getTime()) tr.className = 'today-deadline-row';
-            }
-
-            tr.innerHTML = `
-                <td><input type="checkbox" ${link.isCompleted ? 'checked' : ''}></td>
-                <td><a href="${link.url}" target="_blank">${link.title}</a></td>
-                <td><span class="deadline-badge">${link.deadline || '—'}</span></td>
-            `;
-
-            tr.querySelector('input').onchange = async (e) => {
-                link.isCompleted = e.target.checked;
-                await updateDoc(doc(db, "links", link.id), { isCompleted: link.isCompleted });
-                renderTable();
-                updateStats();
-            };
-            tbody.appendChild(tr);
-        });
-        updateStats();
-    }
-
-    function updateStats() {
-        const done = currentLinksData.filter(l => l.isCompleted).length;
-        document.getElementById('progressStats').textContent = `${done} / ${currentLinksData.length} пройдено`;
+    async function reloadDataFromFirestore() {
+        if (!isFirebaseReady || !db) return;
+        try {
+            const snap = await getDocs(collection(db, "links"));
+            const firestoreLinks = [];
+            snap.forEach(d => firestoreLinks.push({ id: d.id, ...d.data() }));
+            originalLinksData = [...firestoreLinks];
+            currentLinksData = [...firestoreLinks];
+            if (sortMode === "deadline") sortByDeadline();
+            else resetToOriginalOrder();
+        } catch (err) { console.warn(err); }
     }
 
     async function loadData() {
-        const snap = await getDocs(collection(db, "links"));
-        const data = [];
-        snap.forEach(d => data.push({ id: d.id, ...d.data() }));
-        originalLinksData = [...data];
-        currentLinksData = [...data];
+        if (isFirebaseReady && db) {
+            try {
+                const snap = await getDocs(collection(db, "links"));
+                let firestoreLinks = [];
+                snap.forEach(d => firestoreLinks.push({ id: d.id, ...d.data() }));
+                
+                if (firestoreLinks.length === 0) {
+                    const col = collection(db, "links");
+                    for (const sample of SAMPLE_LINKS) await setDoc(doc(col), sample);
+                    return loadData();
+                }
+                originalLinksData = [...firestoreLinks];
+                currentLinksData = [...firestoreLinks];
+                sortByDeadline();
+            } catch(e) { loadLocalFallback(); }
+        } else {
+            loadLocalFallback();
+        }
+        setupUI();
+    }
+    
+    function loadLocalFallback() {
+        const stored = localStorage.getItem("study_plan_deadlines");
+        if (stored) {
+            const parsed = JSON.parse(stored);
+            originalLinksData = parsed; currentLinksData = [...parsed];
+            sortByDeadline();
+            return;
+        }
+        originalLinksData = SAMPLE_LINKS.map((item, idx) => ({ ...item, id: `local_${idx}` }));
+        currentLinksData = [...originalLinksData];
         sortByDeadline();
     }
-
-    function sortByDeadline() {
-        currentLinksData.sort((a, b) => (a.deadline || '9999').localeCompare(b.deadline || '9999'));
-        renderTable();
-    }
-
-    // Инициализация кнопок
-    document.getElementById('resyncFirebaseBtn').onclick = () => {
-        if (confirm("Выполнить дедупликацию? База будет очищена от повторов URL, прогресс сохранится.")) {
-            resyncWithDeduplication();
-        }
-    };
     
-    document.getElementById('sortByDeadlineBtn').onclick = sortByDeadline;
-    document.getElementById('resetSortBtn').onclick = () => {
-        currentLinksData = [...originalLinksData];
-        renderTable();
-    };
-
+    function setupUI() {
+        document.getElementById('sortByDeadlineBtn').onclick = () => sortByDeadline();
+        document.getElementById('resetSortBtn').onclick = () => resetToOriginalOrder();
+        document.getElementById('resyncFirebaseBtn').onclick = () => {
+            if (confirm("⚠️ ВНИМАНИЕ: Все физические дубликаты в Firebase будут удалены. Будет оставлена одна запись на каждый URL с сохранением прогресса. Продолжить?")) {
+                resyncWithDeduplication();
+            }
+        };
+        const resetAllBtn = document.getElementById('demoResetBtn');
+        resetAllBtn.style.display = 'inline-flex';
+        resetAllBtn.onclick = async () => {
+            if(confirm("Сбросить прогресс?")) {
+                currentLinksData.forEach(l => l.isCompleted = false);
+                renderTable();
+                if(isFirebaseReady && db) {
+                    for(let link of currentLinksData) {
+                        if (link.id && !link.id.startsWith('local_')) await updateDoc(doc(db,"links",link.id),{isCompleted:false});
+                    }
+                }
+                saveToLocalStorageFallback();
+            }
+        };
+        
+        const footerDiv = document.querySelector('.footer-note');
+        if(!footerDiv.querySelector('.sync-status')) {
+            const syncSpan = document.createElement('span');
+            syncSpan.className = 'sync-status';
+            syncSpan.innerHTML = isFirebaseReady ? '☁️ Firebase синхронизация' : '📀 Локальный режим';
+            footerDiv.prepend(syncSpan);
+        }
+    }
+    
     loadData();
 </script>
 </body>
