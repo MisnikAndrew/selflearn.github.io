@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>Мой план обучения — трекер прогресса с дедлайнами</title>
+    <title>Мой план обучения — трекер прогресса с дедлайнами (сортировка + подсветка)</title>
     <style>
         * {
             margin: 0;
@@ -22,7 +22,7 @@
         }
 
         .container {
-            max-width: 1100px;
+            max-width: 1300px;
             width: 100%;
             margin: 0 auto;
             background: white;
@@ -70,6 +70,39 @@
             font-weight: 500;
         }
 
+        .toolbar {
+            background: #f1f5f9;
+            padding: 0.6rem 1.5rem;
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 0.8rem;
+        }
+
+        .sort-btn {
+            background: white;
+            border: 1px solid #cbd5e1;
+            padding: 4px 12px;
+            border-radius: 30px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: #1e293b;
+        }
+
+        .sort-btn:hover {
+            background: #e2e8f0;
+            border-color: #94a3b8;
+        }
+
+        .sort-btn.active {
+            background: #1e2a3a;
+            border-color: #1e2a3a;
+            color: white;
+        }
+
         .table-wrapper {
             overflow-x: auto;
             padding: 0;
@@ -107,7 +140,21 @@
         tr.danger-row {
             background-color: #ffe6e5;  /* красный: дедлайн наступил и не пройдено */
         }
-        /* Легкий ховер поверх цветов */
+        /* НОВЫЙ СТИЛЬ: синий цвет, если текущая дата равна дедлайну (и не пройдено) */
+        tr.today-deadline-row {
+            background-color: #b8d9ff !important;  /* яркий голубовато-синий */
+        }
+        /* Приоритет: если строка имеет completed-row, то синий не должен перебивать? По условию задачи: "if current date equals to deadline, make this row blue." 
+           Но обычно дедлайн совпадает с сегодня — если уже пройдено, логика неясна, но сделаем так: blue применяется только для непройденных строк,
+           иначе completed-row имеет приоритет. */
+        tr.completed-row.today-deadline-row {
+            background-color: #e6f7e6 !important; /* зелёный важнее */
+        }
+        tr.today-deadline-row a {
+            color: #0044cc;
+            font-weight: 600;
+        }
+
         tr:hover td {
             filter: brightness(0.97);
         }
@@ -163,8 +210,9 @@
             color: #c62828;
             font-weight: 600;
         }
-        .deadline-soon {
-            color: #b26a00;
+        .deadline-today {
+            color: #0055cc;
+            font-weight: 700;
         }
 
         .footer-note {
@@ -213,6 +261,7 @@
             th, td { padding: 0.8rem 0.8rem; }
             .header { padding: 1.2rem 1rem; }
             .deadline-cell { font-size: 0.75rem; white-space: normal; }
+            .toolbar { justify-content: center; }
         }
 
         .empty-row td {
@@ -221,7 +270,6 @@
             font-style: italic;
             padding: 2rem;
         }
-        /* иконка для дедлайна */
         .deadline-icon {
             margin-right: 4px;
             font-size: 0.8rem;
@@ -231,11 +279,15 @@
 <body>
 <div class="container">
     <div class="header">
-        <h1>План самообразования (Мисник Андрей)</h1>
+        <h1>План салообразования (Мисник Андрей)</h1>
         <div class="sub">
             <span>📌 Отмечайте пройденные материалы — прогресс сохраняется</span>
             <span class="stats-badge" id="progressStats">0 / 0 завершено</span>
         </div>
+    </div>
+    <div class="toolbar">
+        <button id="sortByDeadlineBtn" class="sort-btn active">📅 Сортировать по дедлайну (раньше → позже)</button>
+        <button id="resetSortBtn" class="sort-btn">🔄 Исходный порядок (как в SAMPLE_LINKS)</button>
     </div>
     <div class="table-wrapper">
         <table>
@@ -243,7 +295,7 @@
                 <tr>
                     <th style="width: 60px">Статус</th>
                     <th>Название</th>
-                    <th style="width: 170px">📅 Дедлайн</th>
+                    <th style="width: 200px">📅 Дедлайн</th>
                 </tr>
             </thead>
             <tbody id="links-table-body">
@@ -252,7 +304,7 @@
         </table>
     </div>
     <div class="footer-note">
-        <span>✅ Чекбокс = пройдено (зеленый фон). Желтый = не пройдено, дедлайн в будущем. Красный = не пройдено, дедлайн просрочен.</span>
+        <span>✅ Чекбокс = пройдено (зеленый фон). Желтый = не пройдено, дедлайн в будущем. Красный = не пройдено, дедлайн просрочен. 🔵 СИНИЙ = сегодня дедлайн (если не пройдено). Сортировка по дедлайну или исходный порядок.</span>
         <button class="btn-reset" id="demoResetBtn" style="display: none;">🔄 Сбросить все отметки (демо)</button>
     </div>
 </div>
@@ -289,14 +341,150 @@
     // ======================== РАСШИРЕННЫЕ ДАННЫЕ С ДЕДЛАЙНАМИ ========================
     // Каждый элемент: title, url, isCompleted, deadline (строка в формате YYYY-MM-DD)
     const SAMPLE_LINKS = [
-        { title: "Введение в HTML и CSS (бесплатный курс)", url: "https://developer.mozilla.org/ru/docs/Learn/HTML/Introduction_to_HTML", isCompleted: false, deadline: "2026-05-10" },
-        { title: "JavaScript: основы и лучшие практики", url: "https://learn.javascript.ru/", isCompleted: false, deadline: "2026-06-01" },
-        { title: "React для начинающих — официальный туториал", url: "https://react.dev/learn", isCompleted: false, deadline: "2026-07-15" },
-        { title: "Python: программирование для всех", url: "https://www.python.org/about/gettingstarted/", isCompleted: false, deadline: "2026-05-20" },
-        { title: "Базы данных и SQL (интерактивный тренажёр)", url: "https://www.sql-practice.com/", isCompleted: false, deadline: "2026-04-15" },  // просрочен (если сегодня после 15.04)
-        { title: "Алгоритмы и структуры данных (визуализация)", url: "https://visualgo.net/ru", isCompleted: false, deadline: "2026-08-01" },
-        { title: "Git и GitHub — курс для новичков", url: "https://learngitbranching.js.org/?locale=ru_RU", isCompleted: false, deadline: "2026-05-25" },
-        { title: "Английский для IT-специалистов (подкасты)", url: "https://www.english4it.com/", isCompleted: false, deadline: "2026-06-30" }
+    { title: "Concurrency. Intro", url: "https://disk.yandex.ru/i/RcnyLS0suIyEdQ", isCompleted: false, deadline: "2026-04-10" },
+    { title: "Concurrency. Механика потоков, файберы", url: "https://disk.yandex.ru/i/W_v-28wK2LjqFQ", isCompleted: false, deadline: "2026-04-12" },
+    { title: "Concurrency. Взаимное исключение", url: "https://disk.yandex.ru/i/0BkRBtUQhMBJXQ", isCompleted: false, deadline: "2026-04-14" },
+    { title: "Concurrency. Пул потоков", url: "https://disk.yandex.ru/i/kFUlLONhMaecjg", isCompleted: false, deadline: "2026-04-16" },
+    { title: "Concurrency. Кондвары, стеки", url: "https://disk.yandex.ru/i/8MhejhS8OiL4mg", isCompleted: false, deadline: "2026-04-18" },
+    { title: "Concurrency. Корутины (итераторы, файберы)", url: "https://disk.yandex.ru/i/cpVvt1fc6IsB5A", isCompleted: false, deadline: "2026-04-20" },
+    { title: "Concurrency. Корутины (IO), разбор Mutex", url: "https://disk.yandex.ru/i/uTNaDBJUK7r-4Q", isCompleted: false, deadline: "2026-04-22" },
+    { title: "Concurrency. Когерентность кэшей", url: "https://disk.yandex.ru/i/2aQpyeKpvYeWbQ", isCompleted: false, deadline: "2026-04-24" },
+    { title: "Concurrency. Реализация кондвара", url: "https://disk.yandex.ru/i/ZN_3pmjSK1PAGA", isCompleted: false, deadline: "2026-04-26" },
+    { title: "Concurrency. Sequential Consistency для DRF программ", url: "https://disk.yandex.ru/i/Y5M7oIIZHWz9MQ", isCompleted: false, deadline: "2026-04-28" },
+    { title: "Concurrency. Memory order-ы в C++ MM", url: "https://disk.yandex.ru/i/ze9QsjSuazc9EQ", isCompleted: false, deadline: "2026-04-30" },
+    { title: "Concurrency. Функциональные фьючи", url: "https://disk.yandex.ru/i/-Lj9910ojr5F8g", isCompleted: false, deadline: "2026-05-02" },
+    { title: "Concurrency. Неблокирующая синхронизация, lock-free контейнеры", url: "https://disk.yandex.ru/i/UQaAiaztTO82FA", isCompleted: false, deadline: "2026-05-04" },
+    { title: "Concurrency. Масштабируемый планировщик", url: "https://disk.yandex.ru/i/j9mDrKUVwU634g", isCompleted: false, deadline: "2026-05-06" },
+    { title: "Concurrency. Stackless Coroutines", url: "https://disk.yandex.ru/i/cotBP6d5V1saRg", isCompleted: false, deadline: "2026-05-08" },
+    { title: "Concurrency. Lock-Free Mutex, Awaiters, Symmetric Transfer", url: "https://disk.yandex.ru/i/q-3uwKiDGG-ZAQ", isCompleted: false, deadline: "2026-05-10" },
+    { title: "Concurrency. Lazy Futures / Senders", url: "https://disk.yandex.ru/i/t2-VmFkPmfls3A", isCompleted: false, deadline: "2026-05-12" },
+    { title: "Concurrency. Файберы + фьючи", url: "https://disk.yandex.ru/d/3ghA8B5v15qQ3g", isCompleted: false, deadline: "2026-05-14" },
+    { title: "Concurrency. Управление памятью в лок-фри контейнерах", url: "https://disk.yandex.ru/i/iq-1mGinF1efCg", isCompleted: false, deadline: "2026-05-16" },
+    { title: "Concurrency. Cancellation", url: "https://disk.yandex.ru/i/df9FtbjmqtJPLQ", isCompleted: false, deadline: "2026-05-18" },
+
+    // ================= СЕТИ (14) =================
+    { title: "Сети. Введение в сети", url: "https://disk.yandex.ru/i/5YdCgcb3s8KUoQ", isCompleted: false, deadline: "2026-06-23" },
+    { title: "Сети. Маршрутизация", url: "https://disk.yandex.ru/i/BQBYiFD88bAlzg", isCompleted: false, deadline: "2026-06-25" },
+    { title: "Сети. Сервисы в сети и отказы", url: "https://disk.yandex.ru/i/kDUMCzNJOguTtQ", isCompleted: false, deadline: "2026-06-27" },
+    { title: "Сети. DNS", url: "https://disk.yandex.ru/i/mSXQbosvS0thjQ", isCompleted: false, deadline: "2026-06-29" },
+    { title: "Сети. Принцип работы (DORA)", url: "https://disk.yandex.ru/i/yFSCKngdMgwiSA", isCompleted: false, deadline: "2026-07-01" },
+    { title: "Сети. Введение в сети, Часть 2: Обзор TCP.", url: "https://disk.yandex.ru/i/bFyveGwyn_0frA", isCompleted: false, deadline: "2026-07-03" },
+    { title: "Сети. Криптография", url: "https://disk.yandex.ru/i/c9iYCoCU_zN_nQ", isCompleted: false, deadline: "2026-07-05" },
+    { title: "Сети. Криптография в компьютерных сетях", url: "https://disk.yandex.ru/i/gkqAEOyr-R-oIg", isCompleted: false, deadline: "2026-07-07" },
+    { title: "Сети. Сертификаты и PKI", url: "https://disk.yandex.ru/i/YSAJx_4gSAXadQ", isCompleted: false, deadline: "2026-07-09" },
+    { title: "Сети. Transport Layer Security", url: "https://disk.yandex.ru/i/cGtCrT6J-doLag", isCompleted: false, deadline: "2026-07-11" },
+    { title: "Сети. IPsec", url: "https://disk.yandex.ru/i/UezY85yQTh8Skw", isCompleted: false, deadline: "2026-07-13" },
+    { title: "Сети. Packet walk in Linux Kernel", url: "https://disk.yandex.ru/i/wXPj2H6fXl4bBA", isCompleted: false, deadline: "2026-07-15" },
+    { title: "Сети. Scaling web services", url: "https://disk.yandex.ru/i/Yfb3UjfJ2NAaEg", isCompleted: false, deadline: "2026-07-17" },
+    { title: "Сети. Криптография в сетях Wi-Fi", url: "https://disk.yandex.ru/i/FJAplC6nFa_RAA", isCompleted: false, deadline: "2026-07-19" },
+
+    // ================= БАЗЫ ДАННЫХ (26) =================
+    { title: "Базы данных. Databases and relational model", url: "https://disk.yandex.ru/i/zIlgOv1Olap5Sw", isCompleted: false, deadline: "2026-07-21" },
+    { title: "Базы данных. Storage. Хранение данных", url: "https://disk.yandex.ru/i/dO1-gWeDSfQ1ig", isCompleted: false, deadline: "2026-07-23" },
+    { title: "Базы данных. Storage 2", url: "https://disk.yandex.ru/i/dzN13mYTfOU29g", isCompleted: false, deadline: "2026-07-25" },
+    { title: "Базы данных. Log-structured Storage", url: "https://disk.yandex.ru/i/iSdKW-hI2oy4Qg", isCompleted: false, deadline: "2026-07-27" },
+    { title: "Базы данных. B+Tree, other indexes", url: "https://disk.yandex.ru/i/5oqdgB1iTC3EAA", isCompleted: false, deadline: "2026-07-29" },
+    { title: "Базы данных. Indexes. Hash table", url: "https://disk.yandex.ru/i/NcajUSUbs-DtFA", isCompleted: false, deadline: "2026-07-31" },
+    { title: "Базы данных. Сортировка и агрегация", url: "https://disk.yandex.ru/i/gGvaAG7MBIJzxA", isCompleted: false, deadline: "2026-08-01" },
+    { title: "Базы данных. Query Execution II", url: "https://disk.yandex.ru/i/nb6jC_8N3j8c2w", isCompleted: false, deadline: "2026-08-02" },
+    { title: "Базы данных. Query optimization", url: "https://disk.yandex.ru/i/W8-ka7M2YmnZIg", isCompleted: false, deadline: "2026-08-03" },
+    { title: "Базы данных. Concurrency control and Transactions", url: "https://disk.yandex.ru/i/iCqml-P8WbwTTQ", isCompleted: false, deadline: "2026-08-04" },
+    { title: "Базы данных. Optimistic concurrency control and MVCC", url: "https://disk.yandex.ru/i/VyzMI5b_TgebqQ", isCompleted: false, deadline: "2026-08-05" },
+    { title: "Базы данных. Durability and Recovery", url: "https://disk.yandex.ru/i/YvPf96376ZulLg", isCompleted: false, deadline: "2026-08-06" },
+    { title: "Базы данных. Современные СУБД", url: "https://disk.yandex.ru/i/O5ioXU6b_8YXtA", isCompleted: false, deadline: "2026-08-07" },
+    { title: "Базы данных. Транзакция в распределенных СУБД", url: "https://disk.yandex.ru/i/LasmL4lpMFYbYg", isCompleted: false, deadline: "2026-08-08" },
+    { title: "Базы данных. Query Compilers. JIT", url: "https://disk.yandex.ru/i/QN33G7JowTSOaw", isCompleted: false, deadline: "2026-08-09" },
+    { title: "Базы данных. Протокол tapir. Поколонночные базы данных", url: "https://disk.yandex.ru/i/vXHtsMfMfyqPFQ", isCompleted: false, deadline: "2026-08-10" },
+    { title: "Базы данных. Оптимизация SQL-запросов", url: "https://disk.yandex.ru/i/6L21N7aVisKkrA", isCompleted: false, deadline: "2026-08-11" },
+    { title: "Базы данных. Оптимизация SQL запросов, ч 2", url: "https://disk.yandex.ru/i/dHyuQ-sVRio3Aw", isCompleted: false, deadline: "2026-08-12" },
+    { title: "Базы данных. Многопоточные операторы sql", url: "https://disk.yandex.ru/i/zk0BRG-OqibCNg", isCompleted: false, deadline: "2026-08-13" },
+    { title: "Базы данных. Протокол Raft", url: "https://disk.yandex.ru/i/3YTiavRj2IcDoA", isCompleted: false, deadline: "2026-08-14" },
+    { title: "Базы данных. MPP аналитика", url: "https://disk.yandex.ru/i/kkB_ck0emWbCjQ", isCompleted: false, deadline: "2026-08-15" },
+    { title: "Базы данных. Main memory базы данных", url: "https://disk.yandex.ru/i/SvBqT8_ZTjvHXA", isCompleted: false, deadline: "2026-08-16" },
+    { title: "Базы данных. Разработка postgres", url: "https://disk.yandex.ru/i/tERU5moyX7j7gQ", isCompleted: false, deadline: "2026-08-17" },
+    { title: "Базы данных. Обзор индустриальных СУБД: Cassandra, ScyllaDB, Tarantool, Picodata", url: "https://disk.yandex.ru/i/pv_Ks-QrICtIkg", isCompleted: false, deadline: "2026-08-18" },
+    { title: "Базы данных. YDB. Распределённая масштабируемая отказоустойчивая СУБД с открытым исходным кодом от Яндекс", url: "https://disk.yandex.ru/i/5-Ej1jknvEb1OA", isCompleted: false, deadline: "2026-08-19" },
+    { title: "Базы данных. Обзор индустриальных СУБД: Cassandra, ScyllaDB, Tarantool, Picodata (Часть 2)", url: "https://disk.yandex.ru/i/gkK8JvUiiAe8Hw", isCompleted: false, deadline: "2026-08-20" },
+
+    // ================= РАСПРЕДЕЛЕННЫЕ СИСТЕМЫ (17) =================
+    { title: "Распределенные системы. Модель распределенной системы", url: "https://disk.yandex.ru/i/yaRfD_2aEtChTw", isCompleted: false, deadline: "2026-05-20" },
+    { title: "Распределенные системы. Репликация и линеаризуемость. Атомарный (линеаризуемый) регистр, алгоритм ABD", url: "https://disk.yandex.ru/i/YVPC7h2B3l5iHg", isCompleted: false, deadline: "2026-05-22" },
+    { title: "Распределенные системы. State Machine Replication, Atomic Broadcast, Consensus", url: "https://disk.yandex.ru/i/AsF5xfr9iEJXiA", isCompleted: false, deadline: "2026-05-24" },
+    { title: "Распределенные системы. Невозможность консенсуса, теорема FLP", url: "https://disk.yandex.ru/d/v2n_cZrFl6MqtA", isCompleted: false, deadline: "2026-05-26" },
+    { title: "Распределенные системы. Recap", url: "https://disk.yandex.ru/i/au2AEkx_x3OwFQ", isCompleted: false, deadline: "2026-05-28" },
+    { title: "Распределенные системы. Multi-Paxos", url: "https://disk.yandex.ru/i/D0oQmnCXTkyZRg", isCompleted: false, deadline: "2026-05-30" },
+    { title: "Распределенные системы. Локальное хранилище (LSM)", url: "https://disk.yandex.ru/i/EHODOh7M6aKIkA", isCompleted: false, deadline: "2026-06-01" },
+    { title: "Распределенные системы. RAFT", url: "https://disk.yandex.ru/d/ANM4wlKBhIjnew", isCompleted: false, deadline: "2026-06-03" },
+    { title: "Распределенные системы. Paxos made Live II", url: "https://disk.yandex.ru/i/-ch-YINxeII9Uw", isCompleted: false, deadline: "2026-06-05" },
+    { title: "Распределенные системы. TLA+, часть I", url: "https://disk.yandex.ru/i/5fDoqC2rvYFX7w", isCompleted: false, deadline: "2026-06-07" },
+    { title: "Распределенные системы. Транзакции, изоляция транзакций, сериализуемость", url: "https://disk.yandex.ru/i/As0gWTxEVZ7cEg", isCompleted: false, deadline: "2026-06-09" },
+    { title: "Распределенные системы. Транзакции в Google Spanner, 2PC, 2PL + MVCC", url: "https://disk.yandex.ru/i/vK4KRz_DMhP7Lg", isCompleted: false, deadline: "2026-06-11" },
+    { title: "Распределенные системы. Детерминированные распределенные транзакции (Calvin)", url: "https://disk.yandex.ru/i/AoYk6Bpju14lcg", isCompleted: false, deadline: "2026-06-13" },
+    { title: "Распределенные системы. Silent hardware failures, Crash consistency", url: "https://disk.yandex.ru/d/Pr-D5PaJqI0vaQ", isCompleted: false, deadline: "2026-06-15" },
+    { title: "Распределенные системы. PBFT", url: "https://disk.yandex.ru/d/yGH7Cdub6gZ5yQ", isCompleted: false, deadline: "2026-06-17" },
+    { title: "Распределенные системы. Bitcoin - Детали, Selfish Mining, Atomic Swap", url: "https://disk.yandex.ru/i/yN6bD9vZ9cOUVQ", isCompleted: false, deadline: "2026-06-19" },
+    { title: "Распределенные системы. HotStuff", url: "https://disk.yandex.ru/d/fGunBdrDX1Oblg", isCompleted: false, deadline: "2026-06-21" },
+
+    // ================= АКОС (16) =================
+    { title: "АКОС. Системные вызовы", url: "https://disk.yandex.ru/i/mo5MJKwlPTjSbw", isCompleted: false, deadline: "2026-06-30" },
+    { title: "АКОС. Обзор работы с железом в ядре", url: "https://disk.yandex.ru/i/dGXbPJPaBBFV5Q", isCompleted: false, deadline: "2026-07-02" },
+    { title: "АКОС. Ассемблер x86-64", url: "https://disk.yandex.ru/i/iEkjuWdZi2Z9tw", isCompleted: false, deadline: "2026-07-04" },
+    { title: "АКОС. Виртуальная память", url: "https://disk.yandex.ru/i/BgaMphSogCt-6w", isCompleted: false, deadline: "2026-07-06" },
+    { title: "АКОС. Прерывания и исключения процессора", url: "https://disk.yandex.ru/i/AHGH1xdEr3QYsQ", isCompleted: false, deadline: "2026-07-08" },
+    { title: "АКОС. Кеши процессора. SMP и NUMA", url: "https://disk.yandex.ru/i/R7_9Rwf8vFaGzg", isCompleted: false, deadline: "2026-07-10" },
+    { title: "АКОС. Примитивы синхронизации", url: "https://disk.yandex.ru/i/FUvQdc1M6mRksQ", isCompleted: false, deadline: "2026-07-12" },
+    { title: "АКОС. Планирование исполнения процессов", url: "https://disk.yandex.ru/i/g2HcLn3zHU-CCg", isCompleted: false, deadline: "2026-07-14" },
+    { title: "АКОС. Формат ELF, линковка и запуск исполняемых программ", url: "https://disk.yandex.ru/i/dYspLpdJTrtHZw", isCompleted: false, deadline: "2026-07-16" },
+    { title: "АКОС. Аллокаторы памяти общего назначения", url: "https://disk.yandex.ru/i/OE7fij5Moyu1hw", isCompleted: false, deadline: "2026-07-18" },
+    { title: "АКОС. Моделирование и дизайн", url: "https://disk.yandex.ru/i/ziOX7l6Y0m9--w", isCompleted: false, deadline: "2026-07-20" },
+    { title: "АКОС. HDD и SSD", url: "https://disk.yandex.ru/i/PpI_EUdSpEjnnQ", isCompleted: false, deadline: "2026-07-22" },
+    { title: "АКОС. Файловая система", url: "https://disk.yandex.ru/i/-7MtdaDfDZeW7A", isCompleted: false, deadline: "2026-07-24" },
+    { title: "АКОС. Ассемблер ARM", url: "https://disk.yandex.ru/i/0Ce45zq5mtrIAw", isCompleted: false, deadline: "2026-07-26" },
+    { title: "АКОС. Zero to CPU", url: "https://disk.yandex.ru/i/sD1bH8dzb80utg", isCompleted: false, deadline: "2026-07-28" },
+    { title: "АКОС. Zero to CPU", url: "https://disk.yandex.ru/i/Yczg4_H0qZS3hQ", isCompleted: false, deadline: "2026-07-30" },
+
+    // ================= C++ (41) =================
+    { title: "C++ 21. RTTI, dynamic_cast. Таблицы виртуальных функций", url: "https://www.youtube.com/watch?v=7gCZRga0dbI&list=PLmSYEYYGhnBviRYhIDty-CSTDS16a3whl&index=21", isCompleted: false, deadline: "2026-04-09" },
+    { title: "C++ 22. Строение vtables. Проблемы виртуальных функций", url: "https://www.youtube.com/watch?v=WdA2Lk601CI&list=PLmSYEYYGhnBviRYhIDty-CSTDS16a3whl&index=22", isCompleted: false, deadline: "2026-04-11" },
+    { title: "C++ 23. Шаблоны. Перегрузка и специализация шаблонов", url: "https://www.youtube.com/watch?v=jdOT8LgayP8&list=PLmSYEYYGhnBviRYhIDty-CSTDS16a3whl&index=23", isCompleted: false, deadline: "2026-04-13" },
+    { title: "C++ 24. Шаблоны с нетиповыми параметрами. Вычисления на шаблонах", url: "https://www.youtube.com/watch?v=RiZ8oorXIYE&list=PLmSYEYYGhnBviRYhIDty-CSTDS16a3whl&index=24", isCompleted: false, deadline: "2026-04-15" },
+    { title: "C++ 25. Зависимые имена. Метафункции. Вариативные шаблоны", url: "https://www.youtube.com/watch?v=AR4PrVppY_4&list=PLmSYEYYGhnBviRYhIDty-CSTDS16a3whl&index=25", isCompleted: false, deadline: "2026-04-17" },
+    { title: "C++ 26. Выражения свёртки. CRTP. Исключения", url: "https://www.youtube.com/watch?v=0HSlFFu0cg8&list=PLmSYEYYGhnBviRYhIDty-CSTDS16a3whl&index=26", isCompleted: false, deadline: "2026-04-19" },
+    { title: "C++ 27. Обработка исключений. Идиома RAII. Исключения в конструкторах", url: "https://www.youtube.com/watch?v=4Erj9hR6UsM&list=PLmSYEYYGhnBviRYhIDty-CSTDS16a3whl&index=27", isCompleted: false, deadline: "2026-04-21" },
+    { title: "C++ 28. Exception safety. Внутреннее устройство vector", url: "https://www.youtube.com/watch?v=kUqXNSgdd5A&list=PLmSYEYYGhnBviRYhIDty-CSTDS16a3whl&index=28", isCompleted: false, deadline: "2026-04-22" },
+    { title: "C++ 29. Внутреннее устройство deque. Итераторы. Виды итераторов", url: "https://www.youtube.com/watch?v=8629XIx3WQY&list=PLmSYEYYGhnBviRYhIDty-CSTDS16a3whl&index=29", isCompleted: false, deadline: "2026-04-23" },
+    { title: "C++ 30. Реализация итераторов. Адаптеры над итераторами", url: "https://www.youtube.com/watch?v=1MlfrVlCI8s&list=PLmSYEYYGhnBviRYhIDty-CSTDS16a3whl&index=30", isCompleted: false, deadline: "2026-04-25" },
+    { title: "C++ 31. Потоки ввода/вывода. Перенаправление ввода/вывода", url: "https://www.youtube.com/watch?v=rj1AVZUsEYg&list=PLmSYEYYGhnBviRYhIDty-CSTDS16a3whl&index=31", isCompleted: false, deadline: "2026-04-27" },
+    { title: "C++ 32. Внутреннее устройство std::list и std::map", url: "https://www.youtube.com/watch?v=6aMaWipXWYo&list=PLmSYEYYGhnBviRYhIDty-CSTDS16a3whl&index=32", isCompleted: false, deadline: "2026-04-29" },
+    { title: "C++ 33. Потоковые итераторы. Манипуляторы над потоками", url: "https://www.youtube.com/watch?v=QC04k5mHbZE&list=PLmSYEYYGhnBviRYhIDty-CSTDS16a3whl&index=33", isCompleted: false, deadline: "2026-05-01" },
+    { title: "C++ 34. Внутреннее устройство std::unordered_map", url: "https://www.youtube.com/watch?v=ZDMoiCeLOEY&list=PLmSYEYYGhnBviRYhIDty-CSTDS16a3whl&index=34", isCompleted: false, deadline: "2026-05-03" },
+    { title: "C++ 35. Аллокаторы, allocator_traits", url: "https://www.youtube.com/watch?v=4nmuxYikGcs&list=PLmSYEYYGhnBviRYhIDty-CSTDS16a3whl&index=35", isCompleted: false, deadline: "2026-05-05" },
+    { title: "C++ 36. Allocator-aware контейнеры. Перегрузка new и delete", url: "https://www.youtube.com/watch?v=32chiIXaLCk&list=PLmSYEYYGhnBviRYhIDty-CSTDS16a3whl&index=36", isCompleted: false, deadline: "2026-05-07" },
+    { title: "C++ 37. Разновидности и реализация operator new. Выравнивания. Битовые поля", url: "https://www.youtube.com/watch?v=Fcuy0BuDIyw&list=PLmSYEYYGhnBviRYhIDty-CSTDS16a3whl&index=37", isCompleted: false, deadline: "2026-05-09" },
+    { title: "C++ 38. Scoped allocators. Атрибуты. Move-семантика (начало)", url: "https://www.youtube.com/watch?v=CSDzObQOguo&list=PLmSYEYYGhnBviRYhIDty-CSTDS16a3whl&index=38", isCompleted: false, deadline: "2026-05-11" },
+    { title: "C++ 39. Функция std::move. Определения lvalue и rvalue. Rvalue-ссылки", url: "https://www.youtube.com/watch?v=KfZaere2w-o&list=PLmSYEYYGhnBviRYhIDty-CSTDS16a3whl&index=39", isCompleted: false, deadline: "2026-05-13" },
+    { title: "C++ 40. Ссылочные квалификаторы. Универсальные ссылки. Функция std::forward", url: "https://www.youtube.com/watch?v=575H7-86-dI&list=PLmSYEYYGhnBviRYhIDty-CSTDS16a3whl&index=40", isCompleted: false, deadline: "2026-05-15" },
+    { title: "C++ 41. Реализация std::move и std::forward. Реализация push_back с move-семантикой", url: "https://www.youtube.com/watch?v=xLLq7liY6Ho&list=PLmSYEYYGhnBviRYhIDty-CSTDS16a3whl&index=41", isCompleted: false, deadline: "2026-05-17" },
+    { title: "C++ 42. Expired values. Copy elision. Return value optimization", url: "https://www.youtube.com/watch?v=jCKB7Las3YI&list=PLmSYEYYGhnBviRYhIDty-CSTDS16a3whl&index=42", isCompleted: false, deadline: "2026-05-19" },
+    { title: "C++ 43. Вывод типов auto, decltype, decltype(auto)", url: "https://www.youtube.com/watch?v=ebeezgB5ZQc&list=PLmSYEYYGhnBviRYhIDty-CSTDS16a3whl&index=43", isCompleted: false, deadline: "2026-05-21" },
+    { title: "C++ 44. Deducing this. CTAD. Structured bindings, tuples", url: "https://www.youtube.com/watch?v=ycHEtoJTL5I&list=PLmSYEYYGhnBviRYhIDty-CSTDS16a3whl&index=44", isCompleted: false, deadline: "2026-05-23" },
+    { title: "C++ 45. Tuple, идея реализации. Функции для работы с tuple", url: "https://www.youtube.com/watch?v=dBXEzQM-oIc&list=PLmSYEYYGhnBviRYhIDty-CSTDS16a3whl&index=45", isCompleted: false, deadline: "2026-05-25" },
+    { title: "C++ 46. Внутреннее устройство shared_ptr и weak_ptr", url: "https://www.youtube.com/watch?v=yaTcyrELSFI&list=PLmSYEYYGhnBviRYhIDty-CSTDS16a3whl&index=46", isCompleted: false, deadline: "2026-05-27" },
+    { title: "C++ 47. Type erasure, std::any. Окончание реализации shared_ptr", url: "https://www.youtube.com/watch?v=Hkc1WIUnNOQ&list=PLmSYEYYGhnBviRYhIDty-CSTDS16a3whl&index=47", isCompleted: false, deadline: "2026-05-29" },
+    { title: "C++ 48. SFINAE, std::enable_if", url: "https://www.youtube.com/watch?v=dFrn_vgZb4Y&list=PLmSYEYYGhnBviRYhIDty-CSTDS16a3whl&index=48", isCompleted: false, deadline: "2026-05-31" },
+    { title: "C++ 49. Реализация type_traits с помощью SFINAE", url: "https://www.youtube.com/watch?v=FukzTU0ebHw&list=PLmSYEYYGhnBviRYhIDty-CSTDS16a3whl&index=49", isCompleted: false, deadline: "2026-06-02" },
+    { title: "C++ 50. SFINAE-friendliness. Constraints and requirements", url: "https://www.youtube.com/watch?v=KGGz7LAFSQc&list=PLmSYEYYGhnBviRYhIDty-CSTDS16a3whl&index=50", isCompleted: false, deadline: "2026-06-04" },
+    { title: "C++ 51. Requires-выражения. Концепты", url: "https://www.youtube.com/watch?v=DHq-quieJf0&list=PLmSYEYYGhnBviRYhIDty-CSTDS16a3whl&index=51", isCompleted: false, deadline: "2026-06-06" },
+    { title: "C++ 52. Концепты (окончание). Лямбда-функции (начало)", url: "https://www.youtube.com/watch?v=2uIzDBip3dc&list=PLmSYEYYGhnBviRYhIDty-CSTDS16a3whl&index=52", isCompleted: false, deadline: "2026-06-08" },
+    { title: "C++ 53. Лямбда-функции. Списки захвата. Замыкания", url: "https://www.youtube.com/watch?v=Dojp56LVYKM&list=PLmSYEYYGhnBviRYhIDty-CSTDS16a3whl&index=53", isCompleted: false, deadline: "2026-06-10" },
+    { title: "C++ 54. Объекты замыканий. Обобщенные лямбды. Рекурсивные лямбды.", url: "https://www.youtube.com/watch?v=9qt5fVNERYs&list=PLmSYEYYGhnBviRYhIDty-CSTDS16a3whl&index=54", isCompleted: false, deadline: "2026-06-12" },
+    { title: "C++ 55. std::function и ее реализация. std::invoke", url: "https://www.youtube.com/watch?v=1t1h9FE4q9c&list=PLmSYEYYGhnBviRYhIDty-CSTDS16a3whl&index=55", isCompleted: false, deadline: "2026-06-14" },
+    { title: "C++ 56. Проблемы std::function. std::bind, std::reference_wrapper", url: "https://www.youtube.com/watch?v=gH-NRziSpI0&list=PLmSYEYYGhnBviRYhIDty-CSTDS16a3whl&index=56", isCompleted: false, deadline: "2026-06-16" },
+    { title: "C++ 57. Unions, std::variant, std::visit. Overload pattern", url: "https://www.youtube.com/watch?v=__KU7ZMJnGk&list=PLmSYEYYGhnBviRYhIDty-CSTDS16a3whl&index=57", isCompleted: false, deadline: "2026-06-18" },
+    { title: "C++ 58. Внутреннее устройство std::variant и std::visit", url: "https://www.youtube.com/watch?v=z3-xpymyAAc&list=PLmSYEYYGhnBviRYhIDty-CSTDS16a3whl&index=58", isCompleted: false, deadline: "2026-06-20" },
+    { title: "C++ 59. std::launder. Strict aliasing. Constexpr переменные и функции", url: "https://www.youtube.com/watch?v=q_eGVxF_Xr4&list=PLmSYEYYGhnBviRYhIDty-CSTDS16a3whl&index=59", isCompleted: false, deadline: "2026-06-22" },
+    { title: "C++ 60. Constant expressions. Constexpr, consteval, std::is_constant_evaluated", url: "https://www.youtube.com/watch?v=Ta-jBrAkORs&list=PLmSYEYYGhnBviRYhIDty-CSTDS16a3whl&index=60", isCompleted: false, deadline: "2026-06-24" },
+    { title: "C++ 61. Единицы трансляции. ODR. Внешнее и внутреннее связывание", url: "https://www.youtube.com/watch?v=SSLgoegwEgU&list=PLmSYEYYGhnBviRYhIDty-CSTDS16a3whl&index=61", isCompleted: false, deadline: "2026-06-26" },
     ];
 
     // Глобальное состояние
