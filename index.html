@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>Мой план обучения — трекер прогресса</title>
+    <title>Мой план обучения — трекер прогресса с дедлайнами</title>
     <style>
         * {
             margin: 0;
@@ -22,7 +22,7 @@
         }
 
         .container {
-            max-width: 900px;
+            max-width: 1100px;
             width: 100%;
             margin: 0 auto;
             background: white;
@@ -97,18 +97,25 @@
             transition: background 0.2s;
         }
 
+        /* Цветовые стили для строк */
+        tr.completed-row {
+            background-color: #e6f7e6;  /* зелёный для пройденных */
+        }
+        tr.warning-row {
+            background-color: #fff9c4;  /* жёлтый: дедлайн не наступил, но не пройдено */
+        }
+        tr.danger-row {
+            background-color: #ffe6e5;  /* красный: дедлайн наступил и не пройдено */
+        }
+        /* Легкий ховер поверх цветов */
         tr:hover td {
-            background-color: #fef9e6;
+            filter: brightness(0.97);
         }
 
-        .completed {
-            background-color: #f0f9f0;
-        }
-
-        .completed a {
+        .completed-row a {
             text-decoration: line-through;
             color: #6c757d;
-            opacity: 0.75;
+            opacity: 0.8;
         }
 
         a {
@@ -139,6 +146,25 @@
             accent-color: #2b6e3c;
             transform: scale(1);
             margin-right: 4px;
+        }
+
+        .deadline-cell {
+            font-size: 0.85rem;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        .deadline-badge {
+            background: rgba(0,0,0,0.05);
+            padding: 4px 8px;
+            border-radius: 20px;
+            display: inline-block;
+        }
+        .deadline-overdue {
+            color: #c62828;
+            font-weight: 600;
+        }
+        .deadline-soon {
+            color: #b26a00;
         }
 
         .footer-note {
@@ -182,10 +208,11 @@
             color: #0f1724;
         }
 
-        @media (max-width: 550px) {
+        @media (max-width: 700px) {
             .header h1 { font-size: 1.5rem; }
             th, td { padding: 0.8rem 0.8rem; }
             .header { padding: 1.2rem 1rem; }
+            .deadline-cell { font-size: 0.75rem; white-space: normal; }
         }
 
         .empty-row td {
@@ -194,12 +221,17 @@
             font-style: italic;
             padding: 2rem;
         }
+        /* иконка для дедлайна */
+        .deadline-icon {
+            margin-right: 4px;
+            font-size: 0.8rem;
+        }
     </style>
 </head>
 <body>
 <div class="container">
     <div class="header">
-        <h1>Мой план обучения</h1>
+        <h1>План самообразования (Мисник Андрей)</h1>
         <div class="sub">
             <span>📌 Отмечайте пройденные материалы — прогресс сохраняется</span>
             <span class="stats-badge" id="progressStats">0 / 0 завершено</span>
@@ -211,15 +243,16 @@
                 <tr>
                     <th style="width: 60px">Статус</th>
                     <th>Название</th>
+                    <th style="width: 170px">📅 Дедлайн</th>
                 </tr>
             </thead>
             <tbody id="links-table-body">
-                <tr class="empty-row"><td colspan="2">⏳ Загрузка учебных материалов...</td></tr>
+                <tr class="empty-row"><td colspan="3">⏳ Загрузка учебных материалов...</td></tr>
             </tbody>
         </table>
     </div>
     <div class="footer-note">
-        <span>✅ Нажмите на чекбокс — ссылка зачеркнётся и статус сохранится в Firebase</span>
+        <span>✅ Чекбокс = пройдено (зеленый фон). Желтый = не пройдено, дедлайн в будущем. Красный = не пройдено, дедлайн просрочен.</span>
         <button class="btn-reset" id="demoResetBtn" style="display: none;">🔄 Сбросить все отметки (демо)</button>
     </div>
 </div>
@@ -229,10 +262,6 @@
     import { getFirestore, collection, getDocs, doc, updateDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
     // ======================== КОНФИГУРАЦИЯ FIREBASE ========================
-    // 🔥 ВАЖНО: Замените эти данные на реальные из вашего проекта Firebase!
-    // Если вы хотите просто протестировать внешний вид и логику с примерами,
-    // можно временно использовать режим "демо" (но в реальном проекте укажите свои ключи).
-    // Ниже представлены ПРИМЕРНЫЕ значения — их нужно заменить на ваши.
     const firebaseConfig = {
         apiKey: "AIzaSyBYmca3nKbyB0e3VpCvFJZ3KsDSz8a1nKs",
         authDomain: "selflearn-462ff.firebaseapp.com",
@@ -242,43 +271,164 @@
         appId: "1:530046188190:web:4f1f5ceb63eb5748b4d98f"
     };
 
-    // Флаг для отслеживания ошибки подключения (если конфиг не валидный, работаем в офлайн-демо)
     let isFirebaseReady = false;
     let db = null;
     let app = null;
 
-    // Пытаемся инициализировать Firebase, но если конфиг не настроен — используем localStorage fallback
     try {
         app = initializeApp(firebaseConfig);
         db = getFirestore(app);
         isFirebaseReady = true;
         console.log("✅ Firebase подключён успешно");
     } catch (error) {
-        console.warn("⚠️ Ошибка Firebase (неверный конфиг или отсутствует подключение):", error.message);
-        console.warn("Переход в режим локального хранения (демо-данные сохраняются в браузере)");
+        console.warn("⚠️ Ошибка Firebase:", error.message);
+        console.warn("Переход в режим локального хранения");
         isFirebaseReady = false;
     }
 
-    // ======================== ДЕМО-ДАННЫЕ (ПРИМЕРЫ ССЫЛОК) ========================
-    // Образцы учебных ссылок — они будут добавлены в Firestore при первом запуске,
-    // либо использованы как начальные данные для локального режима.
+    // ======================== РАСШИРЕННЫЕ ДАННЫЕ С ДЕДЛАЙНАМИ ========================
+    // Каждый элемент: title, url, isCompleted, deadline (строка в формате YYYY-MM-DD)
     const SAMPLE_LINKS = [
-        { title: "Введение в HTML и CSS (бесплатный курс)", url: "https://developer.mozilla.org/ru/docs/Learn/HTML/Introduction_to_HTML", isCompleted: false },
-        { title: "JavaScript: основы и лучшие практики", url: "https://learn.javascript.ru/", isCompleted: false },
-        { title: "React для начинающих — официальный туториал", url: "https://react.dev/learn", isCompleted: false },
-        { title: "Python: программирование для всех", url: "https://www.python.org/about/gettingstarted/", isCompleted: false },
-        { title: "Базы данных и SQL (интерактивный тренажёр)", url: "https://www.sql-practice.com/", isCompleted: false },
-        { title: "Алгоритмы и структуры данных (визуализация)", url: "https://visualgo.net/ru", isCompleted: false },
-        { title: "Git и GitHub — курс для новичков", url: "https://learngitbranching.js.org/?locale=ru_RU", isCompleted: false },
-        { title: "Английский для IT-специалистов (подкасты)", url: "https://www.english4it.com/", isCompleted: false }
+        { title: "Введение в HTML и CSS (бесплатный курс)", url: "https://developer.mozilla.org/ru/docs/Learn/HTML/Introduction_to_HTML", isCompleted: false, deadline: "2026-05-10" },
+        { title: "JavaScript: основы и лучшие практики", url: "https://learn.javascript.ru/", isCompleted: false, deadline: "2026-06-01" },
+        { title: "React для начинающих — официальный туториал", url: "https://react.dev/learn", isCompleted: false, deadline: "2026-07-15" },
+        { title: "Python: программирование для всех", url: "https://www.python.org/about/gettingstarted/", isCompleted: false, deadline: "2026-05-20" },
+        { title: "Базы данных и SQL (интерактивный тренажёр)", url: "https://www.sql-practice.com/", isCompleted: false, deadline: "2026-04-15" },  // просрочен (если сегодня после 15.04)
+        { title: "Алгоритмы и структуры данных (визуализация)", url: "https://visualgo.net/ru", isCompleted: false, deadline: "2026-08-01" },
+        { title: "Git и GitHub — курс для новичков", url: "https://learngitbranching.js.org/?locale=ru_RU", isCompleted: false, deadline: "2026-05-25" },
+        { title: "Английский для IT-специалистов (подкасты)", url: "https://www.english4it.com/", isCompleted: false, deadline: "2026-06-30" }
     ];
 
-    // Глобальная ссылка на тело таблицы
+    // Глобальное состояние
+    let currentLinksData = []; // каждый объект: { id, title, url, isCompleted, deadline }
     const tableBody = document.getElementById('links-table-body');
     const progressSpan = document.getElementById('progressStats');
-    let currentLinksData = []; // храним { id, title, url, isCompleted }
 
-    // Функция обновления счётчика прогресса
+    // Вспомогательная функция: получить текущую дату без времени (сравнение только дат)
+    function getTodayDate() {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        return today;
+    }
+
+    // Определение цвета строки по правилам:
+    // - Если isCompleted === true -> зеленая (completed-row)
+    // - Иначе если дедлайн ещё не наступил (deadline >= сегодня) -> желтая (warning-row)
+    // - Иначе (deadline < сегодня) -> красная (danger-row)
+    function getRowClass(link) {
+        if (link.isCompleted) return 'completed-row';
+        if (!link.deadline) return ''; // если нет дедлайна, без подсветки (нейтрально)
+        const today = getTodayDate();
+        const deadlineDate = new Date(link.deadline);
+        deadlineDate.setHours(0, 0, 0, 0);
+        if (deadlineDate >= today) {
+            return 'warning-row';  // желтый: дедлайн в будущем или сегодня, но не пройдено
+        } else {
+            return 'danger-row';   // красный: просрочено и не пройдено
+        }
+    }
+
+    // Форматирование дедлайна для отображения (более читаемый вид)
+    function formatDeadline(deadlineStr) {
+        if (!deadlineStr) return '—';
+        const parts = deadlineStr.split('-');
+        if (parts.length !== 3) return deadlineStr;
+        const dateObj = new Date(deadlineStr);
+        if (isNaN(dateObj.getTime())) return deadlineStr;
+        return dateObj.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }).replace(' г.', '');
+    }
+
+    // Проверка, просрочен ли дедлайн (для дополнительной иконки)
+    function isDeadlineOverdue(deadlineStr, isCompleted) {
+        if (isCompleted) return false;
+        if (!deadlineStr) return false;
+        const today = getTodayDate();
+        const deadlineDate = new Date(deadlineStr);
+        deadlineDate.setHours(0, 0, 0, 0);
+        return deadlineDate < today;
+    }
+
+    // Отрисовка таблицы с учетом цветов строк и дедлайнов
+    function renderTable() {
+        if (!tableBody) return;
+        tableBody.innerHTML = '';
+
+        if (currentLinksData.length === 0) {
+            const emptyRow = document.createElement('tr');
+            emptyRow.className = 'empty-row';
+            emptyRow.innerHTML = '<td colspan="3">📚 Нет ссылок. Добавьте материалы в Firebase или перезагрузите демо.</td>';
+            tableBody.appendChild(emptyRow);
+            updateProgressUI();
+            return;
+        }
+
+        for (const link of currentLinksData) {
+            const tr = document.createElement('tr');
+            const rowClass = getRowClass(link);
+            if (rowClass) tr.classList.add(rowClass);
+
+            // Ячейка чекбокса
+            const tdCheck = document.createElement('td');
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.checked = link.isCompleted;
+            checkbox.addEventListener('change', async (e) => {
+                e.stopPropagation();
+                const newStatus = checkbox.checked;
+                // обновляем локальное состояние
+                link.isCompleted = newStatus;
+                // перерисовываем строку с новым классом (меняем цвет)
+                renderTable();  // полная перерисовка для корректного изменения цвета
+                // сохраняем статус в хранилище
+                await saveStatusToStorage(link.id, newStatus);
+            });
+            tdCheck.appendChild(checkbox);
+
+            // Ячейка ссылки (название + ссылка)
+            const tdLink = document.createElement('td');
+            const anchor = document.createElement('a');
+            anchor.href = link.url;
+            anchor.target = '_blank';
+            anchor.rel = 'noopener noreferrer';
+            anchor.textContent = link.title;
+            tdLink.appendChild(anchor);
+
+            // Ячейка дедлайна с дополнительным оформлением
+            const tdDeadline = document.createElement('td');
+            tdDeadline.className = 'deadline-cell';
+            if (link.deadline) {
+                const deadlineText = formatDeadline(link.deadline);
+                const overdue = isDeadlineOverdue(link.deadline, link.isCompleted);
+                const badgeSpan = document.createElement('span');
+                badgeSpan.className = 'deadline-badge';
+                const iconSpan = document.createElement('span');
+                iconSpan.className = 'deadline-icon';
+                iconSpan.textContent = overdue ? '⚠️ ' : '📅 ';
+                badgeSpan.appendChild(iconSpan);
+                const textSpan = document.createElement('span');
+                textSpan.textContent = deadlineText;
+                if (overdue && !link.isCompleted) {
+                    textSpan.style.color = '#c62828';
+                    textSpan.style.fontWeight = 'bold';
+                } else if (!link.isCompleted && new Date(link.deadline) >= getTodayDate()) {
+                    textSpan.style.color = '#b26a00';
+                }
+                badgeSpan.appendChild(textSpan);
+                tdDeadline.appendChild(badgeSpan);
+            } else {
+                tdDeadline.textContent = '—';
+                tdDeadline.style.opacity = '0.7';
+            }
+
+            tr.appendChild(tdCheck);
+            tr.appendChild(tdLink);
+            tr.appendChild(tdDeadline);
+            tableBody.appendChild(tr);
+        }
+        updateProgressUI();
+    }
+
+    // Обновление счетчика прогресса
     function updateProgressUI() {
         if (!currentLinksData.length) {
             progressSpan.textContent = `0 / 0 завершено`;
@@ -288,64 +438,7 @@
         progressSpan.textContent = `${completedCount} / ${currentLinksData.length} завершено`;
     }
 
-    // Отрисовка таблицы на основе currentLinksData
-    function renderTable() {
-        if (!tableBody) return;
-        tableBody.innerHTML = '';
-        
-        if (currentLinksData.length === 0) {
-            const emptyRow = document.createElement('tr');
-            emptyRow.className = 'empty-row';
-            emptyRow.innerHTML = '<td colspan="2">📚 Нет ссылок. Добавьте материалы в Firebase или перезагрузите демо.</td>';
-            tableBody.appendChild(emptyRow);
-            updateProgressUI();
-            return;
-        }
-
-        for (const link of currentLinksData) {
-            const tr = document.createElement('tr');
-            if (link.isCompleted) tr.classList.add('completed');
-            
-            // Ячейка чекбокса
-            const tdCheck = document.createElement('td');
-            const checkbox = document.createElement('input');
-            checkbox.type = 'checkbox';
-            checkbox.checked = link.isCompleted;
-            // Обработчик изменения состояния
-            checkbox.addEventListener('change', async (e) => {
-                e.stopPropagation();
-                const newStatus = checkbox.checked;
-                // оптимистично обновляем локально
-                link.isCompleted = newStatus;
-                if (newStatus) {
-                    tr.classList.add('completed');
-                } else {
-                    tr.classList.remove('completed');
-                }
-                updateProgressUI();
-                
-                // Сохраняем статус в БД (Firebase или localStorage)
-                await saveStatusToStorage(link.id, newStatus);
-            });
-            tdCheck.appendChild(checkbox);
-            
-            // Ячейка ссылки
-            const tdLink = document.createElement('td');
-            const anchor = document.createElement('a');
-            anchor.href = link.url;
-            anchor.target = '_blank';
-            anchor.rel = 'noopener noreferrer';
-            anchor.textContent = link.title;
-            tdLink.appendChild(anchor);
-            
-            tr.appendChild(tdCheck);
-            tr.appendChild(tdLink);
-            tableBody.appendChild(tr);
-        }
-        updateProgressUI();
-    }
-
-    // Функция сохранения статуса (Firestore или localStorage fallback)
+    // Сохранение статуса в Firebase или localStorage
     async function saveStatusToStorage(docId, isChecked) {
         if (isFirebaseReady && db) {
             try {
@@ -354,7 +447,6 @@
                 console.log(`✅ Статус обновлён в Firebase: ${docId} -> ${isChecked}`);
             } catch (err) {
                 console.error("Ошибка обновления Firebase:", err);
-                // fallback на localStorage если Firebase не отвечает
                 saveToLocalStorageFallback(docId, isChecked);
             }
         } else {
@@ -362,86 +454,75 @@
         }
     }
 
-    // Локальное резервное сохранение (localStorage)
     function saveToLocalStorageFallback(docId, isChecked) {
         try {
-            const stored = localStorage.getItem("study_plan_local");
+            const stored = localStorage.getItem("study_plan_deadlines");
             let localData = [];
             if (stored) localData = JSON.parse(stored);
             const index = localData.findIndex(item => item.id === docId);
             if (index !== -1) {
                 localData[index].isCompleted = isChecked;
-                // также обновляем currentLinksData синхронно
                 const linkInCurrent = currentLinksData.find(l => l.id === docId);
                 if (linkInCurrent) linkInCurrent.isCompleted = isChecked;
             }
-            localStorage.setItem("study_plan_local", JSON.stringify(localData));
+            localStorage.setItem("study_plan_deadlines", JSON.stringify(localData));
             console.log("💾 Статус сохранён в localStorage");
-            // перерисовывать не нужно, так как уже обновлено локально, но прогресс обновлён
         } catch(e) { console.warn(e); }
     }
 
-    // Загрузка данных из Firebase + инициализация примерами (если коллекция пуста)
+    // Загрузка данных из Firebase (с поддержкой полей deadline)
     async function loadFromFirebaseAndInit() {
         if (!isFirebaseReady || !db) {
-            // Работаем полностью из localStorage или демо-данных по умолчанию
             loadFromLocalStorageOrSample();
             return;
         }
-        
+
         try {
             const querySnapshot = await getDocs(collection(db, "links"));
-            const firestoreLinks = [];
+            let firestoreLinks = [];
             querySnapshot.forEach(docSnap => {
                 const data = docSnap.data();
                 firestoreLinks.push({
                     id: docSnap.id,
                     title: data.title || "Без названия",
                     url: data.url || "#",
-                    isCompleted: data.isCompleted === true
+                    isCompleted: data.isCompleted === true,
+                    deadline: data.deadline || null   // поддержка дедлайна в Firestore
                 });
             });
-            
-            // Если в Firestore пусто — заполняем примерами
+
+            // Если коллекция пуста — загружаем образцы с дедлайнами
             if (firestoreLinks.length === 0) {
-                console.log("📤 Коллекция 'links' пуста, добавляем образцы ссылок...");
+                console.log("📤 Коллекция 'links' пуста, добавляем образцы ссылок с дедлайнами...");
                 const linksCollection = collection(db, "links");
                 for (const sample of SAMPLE_LINKS) {
                     const newDocRef = doc(linksCollection);
                     await setDoc(newDocRef, {
                         title: sample.title,
                         url: sample.url,
-                        isCompleted: sample.isCompleted
+                        isCompleted: sample.isCompleted,
+                        deadline: sample.deadline
                     });
                 }
-                // повторно загружаем после добавления
+                // повторная загрузка
                 const newSnapshot = await getDocs(collection(db, "links"));
+                firestoreLinks = [];
                 newSnapshot.forEach(docSnap => {
                     const data = docSnap.data();
                     firestoreLinks.push({
                         id: docSnap.id,
                         title: data.title,
                         url: data.url,
-                        isCompleted: data.isCompleted
-                    });
-                });
-                // очищаем массив и наполняем заново
-                firestoreLinks.length = 0;
-                newSnapshot.forEach(docSnap => {
-                    firestoreLinks.push({
-                        id: docSnap.id,
-                        title: docSnap.data().title,
-                        url: docSnap.data().url,
-                        isCompleted: docSnap.data().isCompleted
+                        isCompleted: data.isCompleted,
+                        deadline: data.deadline || null
                     });
                 });
             }
-            
+
             if (firestoreLinks.length > 0) {
                 currentLinksData = firestoreLinks;
                 renderTable();
             } else {
-                // на всякий случай, если всё ещё пусто
                 currentLinksData = SAMPLE_LINKS.map((item, idx) => ({ ...item, id: `local_${idx}` }));
                 renderTable();
             }
@@ -450,48 +531,52 @@
             loadFromLocalStorageOrSample();
         }
     }
-    
-    // Локальный режим (если нет Firebase или ошибка)
+
+    // Локальный режим (с сохранением дедлайнов)
     function loadFromLocalStorageOrSample() {
-        const stored = localStorage.getItem("study_plan_local");
+        const stored = localStorage.getItem("study_plan_deadlines");
         let localPlan = [];
         if (stored) {
             try {
                 localPlan = JSON.parse(stored);
                 if (Array.isArray(localPlan) && localPlan.length > 0) {
-                    currentLinksData = localPlan;
+                    // Убедимся, что у каждого элемента есть поле deadline (миграция)
+                    const validPlan = localPlan.map(item => ({
+                        ...item,
+                        deadline: item.deadline || null
+                    }));
+                    currentLinksData = validPlan;
                     renderTable();
                     return;
                 }
             } catch(e) { console.warn(e); }
         }
-        
-        // иначе создаём демо-данные с локальными ID
+
+        // Создаем демо-данные с дедлайнами (копия SAMPLE_LINKS)
         currentLinksData = SAMPLE_LINKS.map((item, index) => ({
             ...item,
             id: `sample_${index}`,
+            deadline: item.deadline
         }));
-        // сохраняем в localStorage для последующей синхронизации статусов
         const toStore = currentLinksData.map(item => ({
             id: item.id,
             title: item.title,
             url: item.url,
-            isCompleted: item.isCompleted
+            isCompleted: item.isCompleted,
+            deadline: item.deadline
         }));
-        localStorage.setItem("study_plan_local", JSON.stringify(toStore));
+        localStorage.setItem("study_plan_deadlines", JSON.stringify(toStore));
         renderTable();
     }
-    
-    // Функция для сброса всех отметок (опция, если нужно снять все галки)
+
+    // Сброс всех чекбоксов (только isCompleted = false, дедлайны не меняются)
     async function resetAllCheckboxes() {
         if (confirm("Снять все отметки о выполнении? Все чекбоксы станут пустыми. Прогресс будет сброшен.")) {
-            // обновляем локально
             for (let link of currentLinksData) {
                 link.isCompleted = false;
             }
-            renderTable(); // перерисуем таблицу
-            
-            // синхронизируем с хранилищем (Firebase или localStorage)
+            renderTable();
+
             if (isFirebaseReady && db) {
                 try {
                     for (let link of currentLinksData) {
@@ -508,27 +593,43 @@
             }
         }
     }
-    
+
     function syncAllToLocalStorage() {
         const toStore = currentLinksData.map(link => ({
             id: link.id,
             title: link.title,
             url: link.url,
-            isCompleted: link.isCompleted
+            isCompleted: link.isCompleted,
+            deadline: link.deadline
         }));
-        localStorage.setItem("study_plan_local", JSON.stringify(toStore));
+        localStorage.setItem("study_plan_deadlines", JSON.stringify(toStore));
         console.log("💾 Локальный сброс сохранён в localStorage");
     }
-    
-    // Если в режиме демо, показываем кнопку сброса (удобно)
-    function checkAndSetupResetButton() {
+
+    // Добавление кнопки сброса и индикатора режима
+    function setupUIComponents() {
         const resetBtn = document.getElementById('demoResetBtn');
         if (resetBtn) {
             resetBtn.style.display = 'inline-flex';
             resetBtn.addEventListener('click', resetAllCheckboxes);
         }
+        const footerDiv = document.querySelector('.footer-note');
+        if (footerDiv) {
+            const syncSpan = document.createElement('span');
+            syncSpan.className = 'sync-status';
+            if (isFirebaseReady && db) {
+                syncSpan.innerHTML = '☁️ Синхронизация с Firebase Cloud (с дедлайнами)';
+            } else {
+                syncSpan.innerHTML = '📀 Локальное хранение (данные в браузере + дедлайны)';
+            }
+            // добавляем в начало футера, но не дублируем
+            const existingSync = footerDiv.querySelector('.sync-status');
+            if (!existingSync) {
+                footerDiv.prepend(syncSpan);
+            }
+        }
     }
-    
+
     // Инициализация приложения
     async function init() {
         if (isFirebaseReady && db) {
@@ -536,24 +637,9 @@
         } else {
             loadFromLocalStorageOrSample();
         }
-        checkAndSetupResetButton();
-        
-        // Периодический счётчик для отображения синхронизации (необязательно)
-        // дополнительный контроль — если firebase не используется, показываем статус в футере
-        const footerDiv = document.querySelector('.footer-note');
-        if (!isFirebaseReady && footerDiv) {
-            const syncSpan = document.createElement('span');
-            syncSpan.className = 'sync-status';
-            syncSpan.innerHTML = '📀 Режим локального хранения (данные в браузере)';
-            footerDiv.prepend(syncSpan);
-        } else if (isFirebaseReady && footerDiv) {
-            const syncSpan = document.createElement('span');
-            syncSpan.className = 'sync-status';
-            syncSpan.innerHTML = '☁️ Синхронизация с Firebase Cloud';
-            footerDiv.prepend(syncSpan);
-        }
+        setupUIComponents();
     }
-    
+
     init();
 </script>
 </body>
