@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Мой план обучения</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: auto; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 10px; border-bottom: 1px solid #ccc; text-align: left; }
+        .completed { text-decoration: line-through; color: gray; }
+    </style>
+</head>
+<body>
+
+    <h1>Мой план обучения</h1>
+    <table>
+        <thead>
+            <tr>
+                <th>Статус</th>
+                <th>Название</th>
+            </tr>
+        </thead>
+        <tbody id="links-table-body">
+            <!-- Сюда будут загружаться ссылки -->
+        </tbody>
+    </table>
+
+    <!-- Подключение Firebase (версия 9 модульная) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, getDocs, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        // КОНФИГУРАЦИЮ БРАТЬ ИЗ НАСТРОЕК ВАШЕГО ПРОЕКТА FIREBASE
+        const firebaseConfig = {
+            apiKey: "ВАШ_API_KEY",
+            authDomain: "ВАШ_ПРОЕКТ.firebaseapp.com",
+            projectId: "ВАШ_ПРОЕКТ",
+            storageBucket: "ВАШ_ПРОЕКТ.appspot.com",
+            messagingSenderId: "ВАШ_ID",
+            appId: "ВАШ_APP_ID"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        const tableBody = document.getElementById('links-table-body');
+
+        // Функция загрузки данных
+        async function loadLinks() {
+            const querySnapshot = await getDocs(collection(db, "links"));
+            tableBody.innerHTML = ''; // Очищаем таблицу перед рендером
+            
+            querySnapshot.forEach((documentSnapshot) => {
+                const data = documentSnapshot.data();
+                const id = documentSnapshot.id;
+
+                const tr = document.createElement('tr');
+                
+                // Чекбокс
+                const tdCheck = document.createElement('td');
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.checked = data.isCompleted;
+                checkbox.onchange = () => toggleStatus(id, checkbox.checked, tr);
+                tdCheck.appendChild(checkbox);
+
+                // Ссылка
+                const tdLink = document.createElement('td');
+                const a = document.createElement('a');
+                a.href = data.url;
+                a.target = '_blank';
+                a.textContent = data.title;
+                if (data.isCompleted) tr.classList.add('completed');
+                tdLink.appendChild(a);
+
+                tr.appendChild(tdCheck);
+                tr.appendChild(tdLink);
+                tableBody.appendChild(tr);
+            });
+        }
+
+        // Функция обновления статуса в БД
+        async function toggleStatus(id, isChecked, rowElement) {
+            const linkRef = doc(db, "links", id);
+            await updateDoc(linkRef, {
+                isCompleted: isChecked
+            });
+            if (isChecked) {
+                rowElement.classList.add('completed');
+            } else {
+                rowElement.classList.remove('completed');
+            }
+        }
+
+        loadLinks();
+    </script>
+</body>
+</html>
