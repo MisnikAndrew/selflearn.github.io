@@ -785,11 +785,12 @@
                     const masterId = group.ids[0]; // Оставляем первый ID
                     const duplicates = group.ids.slice(1); // Все остальные на удаление
 
-                    // Обновляем "мастер"-запись актуальным названием и дедлайном + объединенным статусом
+                    // Обновляем "мастер"-запись актуальным названием + объединенным статусом, дедлайн из базы сохраняем
+                    const masterDoc = fireDocs.find(d => d.id === masterId);
                     batch.update(doc(db, "links", masterId), {
                         title: sample.title,
-                        deadline: sample.deadline,
-                        isCompleted: group.isCompleted 
+                        deadline: masterDoc?.deadline ?? sample.deadline,
+                        isCompleted: group.isCompleted
                     });
 
                     // Удаляем лишние ID
