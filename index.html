@@ -343,6 +343,8 @@
     <div class="toolbar">
         <button id="sortByDeadlineBtn" class="sort-btn active">📅 Сортировать по дедлайну (раньше → позже)</button>
         <button id="resetSortBtn" class="sort-btn">🔄 Исходный порядок</button>
+        <button id="shiftAllBackBtn" class="sort-btn">◀ −1д все</button>
+        <button id="shiftAllFwdBtn" class="sort-btn">+1д все ▶</button>
         <button id="resyncFirebaseBtn" class="sync-btn">🔄 СИНХРОНИЗАЦИЯ + ДЕДУПЛИКАЦИЯ (URL - primary key)</button>
     </div>
     <div class="table-wrapper">
@@ -680,6 +682,32 @@
         document.getElementById('sortByDeadlineBtn').classList.remove('active');
     }
 
+    async function shiftAllDeadlines(days) {
+        const incomplete = currentLinksData.filter(l => !l.isCompleted);
+        for (const link of incomplete) {
+            const current = link.deadline ? new Date(link.deadline) : new Date();
+            current.setDate(current.getDate() + days);
+            link.deadline = current.toISOString().slice(0, 10);
+        }
+        renderTable();
+        if (isFirebaseReady && db) {
+            try {
+                const batch = writeBatch(db);
+                for (const link of incomplete) {
+                    if (link.id && !link.id.startsWith('local_')) {
+                        batch.update(doc(db, "links", link.id), { deadline: link.deadline });
+                    }
+                }
+                await batch.commit();
+            } catch(err) {
+                saveToLocalStorageFallback();
+            }
+        } else {
+            saveToLocalStorageFallback();
+        }
+        showToast(`✅ Сдвинуто ${incomplete.length} дедлайнов на ${days > 0 ? '+' : ''}${days} д.`);
+    }
+
     async function shiftDeadline(link, days) {
         const current = link.deadline ? new Date(link.deadline) : new Date();
         current.setDate(current.getDate() + days);
@@ -847,6 +875,8 @@
     function setupUI() {
         document.getElementById('sortByDeadlineBtn').onclick = () => sortByDeadline();
         document.getElementById('resetSortBtn').onclick = () => resetToOriginalOrder();
+        document.getElementById('shiftAllBackBtn').onclick = () => shiftAllDeadlines(-1);
+        document.getElementById('shiftAllFwdBtn').onclick = () => shiftAllDeadlines(1);
         document.getElementById('resyncFirebaseBtn').onclick = () => {
             if (confirm("⚠️ ВНИМАНИЕ: Все физические дубликаты в Firebase будут удалены. Будет оставлена одна запись на каждый URL с сохранением прогресса. Продолжить?")) {
                 resyncWithDeduplication();
