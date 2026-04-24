@@ -306,6 +306,29 @@
             opacity: 0;
             pointer-events: none;
         }
+
+        .deadline-shift-btns {
+            display: inline-flex;
+            gap: 4px;
+            margin-left: 6px;
+            vertical-align: middle;
+        }
+
+        .btn-shift {
+            background: rgba(0,0,0,0.08);
+            border: 1px solid rgba(0,0,0,0.15);
+            border-radius: 12px;
+            font-size: 0.7rem;
+            padding: 2px 7px;
+            cursor: pointer;
+            color: #334155;
+            line-height: 1.4;
+            transition: background 0.15s;
+        }
+
+        .btn-shift:hover {
+            background: rgba(0,0,0,0.18);
+        }
     </style>
 </head>
 <body>
@@ -597,6 +620,24 @@
             } else {
                 tdDeadline.textContent = '—';
             }
+
+            if (!link.isCompleted) {
+                const shiftBtns = document.createElement('span');
+                shiftBtns.className = 'deadline-shift-btns';
+                const btnBack = document.createElement('button');
+                btnBack.className = 'btn-shift';
+                btnBack.textContent = '◀ −1д';
+                btnBack.title = 'Сдвинуть дедлайн на 1 день назад';
+                btnBack.addEventListener('click', () => shiftDeadline(link, -1));
+                const btnFwd = document.createElement('button');
+                btnFwd.className = 'btn-shift';
+                btnFwd.textContent = '+1д ▶';
+                btnFwd.title = 'Сдвинуть дедлайн на 1 день вперёд';
+                btnFwd.addEventListener('click', () => shiftDeadline(link, 1));
+                shiftBtns.appendChild(btnBack);
+                shiftBtns.appendChild(btnFwd);
+                tdDeadline.appendChild(shiftBtns);
+            }
             tr.appendChild(tdCheck);
             tr.appendChild(tdLink);
             tr.appendChild(tdDeadline);
@@ -637,6 +678,22 @@
         renderTable();
         document.getElementById('resetSortBtn').classList.add('active');
         document.getElementById('sortByDeadlineBtn').classList.remove('active');
+    }
+
+    async function shiftDeadline(link, days) {
+        const current = link.deadline ? new Date(link.deadline) : new Date();
+        current.setDate(current.getDate() + days);
+        link.deadline = current.toISOString().slice(0, 10);
+        renderTable();
+        if (isFirebaseReady && db && link.id && !link.id.startsWith('local_')) {
+            try {
+                await updateDoc(doc(db, "links", link.id), { deadline: link.deadline });
+            } catch(err) {
+                saveToLocalStorageFallback();
+            }
+        } else {
+            saveToLocalStorageFallback();
+        }
     }
 
     async function saveStatusToStorage(docId, isChecked) {
