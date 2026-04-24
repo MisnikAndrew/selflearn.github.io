@@ -244,6 +244,68 @@
             gap: 8px;
         }
 
+        .completion-banner {
+            background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+            padding: 0.9rem 2rem;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+        }
+
+        .completion-banner .finish-label {
+            font-size: 0.8rem;
+            opacity: 0.7;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            margin-bottom: 2px;
+        }
+
+        .completion-banner .finish-date {
+            font-size: 1.25rem;
+            font-weight: 700;
+            letter-spacing: -0.3px;
+        }
+
+        .countdown-blocks {
+            display: flex;
+            gap: 8px;
+        }
+
+        .countdown-block {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 10px;
+            padding: 6px 12px;
+            text-align: center;
+            min-width: 56px;
+        }
+
+        .countdown-block .count-num {
+            font-size: 1.4rem;
+            font-weight: 700;
+            line-height: 1;
+            display: block;
+        }
+
+        .countdown-block .count-lbl {
+            font-size: 0.65rem;
+            opacity: 0.6;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: block;
+            margin-top: 2px;
+        }
+
+        .countdown-past {
+            opacity: 0.5;
+            font-style: italic;
+            font-size: 0.9rem;
+        }
+
         .sync-status {
             display: flex;
             align-items: center;
@@ -339,6 +401,13 @@
             <span>📌 Отмечайте пройденные материалы — прогресс сохраняется</span>
             <span class="stats-badge" id="progressStats">0 / 0 завершено</span>
         </div>
+    </div>
+    <div class="completion-banner" id="completionBanner">
+        <div>
+            <div class="finish-label">🎯 Ожидаемое завершение</div>
+            <div class="finish-date" id="finishDate">—</div>
+        </div>
+        <div class="countdown-blocks" id="countdownBlocks"></div>
     </div>
     <div class="toolbar">
         <button id="sortByDeadlineBtn" class="sort-btn active">📅 Сортировать по дедлайну (раньше → позже)</button>
@@ -646,6 +715,51 @@
             tableBody.appendChild(tr);
         }
         updateProgressUI();
+        updateCompletionBanner();
+    }
+
+    let countdownInterval = null;
+
+    function updateCompletionBanner() {
+        const incomplete = currentLinksData.filter(l => !l.isCompleted && l.deadline);
+        const finishDateEl = document.getElementById('finishDate');
+        const countdownEl = document.getElementById('countdownBlocks');
+        if (!finishDateEl || !countdownEl) return;
+
+        if (incomplete.length === 0) {
+            finishDateEl.textContent = '🎉 Все лекции пройдены!';
+            countdownEl.innerHTML = '';
+            if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
+            return;
+        }
+
+        const maxDeadline = incomplete.reduce((max, l) => l.deadline > max ? l.deadline : max, '');
+        finishDateEl.textContent = formatDeadline(maxDeadline);
+
+        function tick() {
+            const now = new Date();
+            const target = new Date(maxDeadline);
+            target.setHours(23, 59, 59, 999);
+            const diff = target - now;
+            if (diff <= 0) {
+                countdownEl.innerHTML = '<span class="countdown-past">дедлайн прошёл</span>';
+                return;
+            }
+            const days = Math.floor(diff / 86400000);
+            const hours = Math.floor((diff % 86400000) / 3600000);
+            const mins = Math.floor((diff % 3600000) / 60000);
+            const secs = Math.floor((diff % 60000) / 1000);
+            countdownEl.innerHTML = [
+                [days, 'дн'],
+                [hours, 'ч'],
+                [mins, 'мин'],
+                [secs, 'сек']
+            ].map(([n, l]) => `<div class="countdown-block"><span class="count-num">${String(n).padStart(2,'0')}</span><span class="count-lbl">${l}</span></div>`).join('');
+        }
+
+        tick();
+        if (countdownInterval) clearInterval(countdownInterval);
+        countdownInterval = setInterval(tick, 1000);
     }
 
     function updateProgressUI() {
